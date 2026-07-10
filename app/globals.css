@@ -1,8 +1,24 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0b0f1a;
+  --foreground: #e8ecf4;
+  --card-bg: rgba(17, 24, 43, 0.85);
+  --card-border: rgba(99, 122, 178, 0.15);
+  --accent-green: #00e68a;
+  --accent-green-dim: rgba(0, 230, 138, 0.15);
+  --accent-yellow: #ffc107;
+  --accent-yellow-dim: rgba(255, 193, 7, 0.15);
+  --accent-red: #ff4757;
+  --accent-red-dim: rgba(255, 71, 87, 0.15);
+  --accent-blue: #4facfe;
+  --accent-purple: #a78bfa;
+  --text-secondary: #8b95a8;
+  --text-tertiary: #5a6478;
+  --gradient-start: #667eea;
+  --gradient-end: #764ba2;
+  --positive: #00e68a;
+  --negative: #ff4757;
 }
 
 @theme inline {
@@ -12,15 +28,159 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
+
+/* === Glassmorphism Card === */
+.glass-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  border-color: rgba(99, 122, 178, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+}
+
+/* === Signal Level Colors === */
+.signal-green { color: var(--accent-green); }
+.signal-yellow { color: var(--accent-yellow); }
+.signal-red { color: var(--accent-red); }
+
+.signal-bg-green { background: var(--accent-green-dim); border-color: var(--accent-green); }
+.signal-bg-yellow { background: var(--accent-yellow-dim); border-color: var(--accent-yellow); }
+.signal-bg-red { background: var(--accent-red-dim); border-color: var(--accent-red); }
+
+.signal-glow-green { box-shadow: 0 0 20px rgba(0, 230, 138, 0.2); }
+.signal-glow-yellow { box-shadow: 0 0 20px rgba(255, 193, 7, 0.2); }
+.signal-glow-red { box-shadow: 0 0 20px rgba(255, 71, 87, 0.2); }
+
+/* === Pulse Animation === */
+@keyframes pulse-signal {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.animate-pulse-signal {
+  animation: pulse-signal 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* === Gradient Text === */
+.gradient-text {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* === Tab Styling === */
+.tab-active {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
+  border-color: var(--gradient-start);
+  color: white;
+}
+
+.tab-inactive {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+}
+
+.tab-inactive:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--foreground);
+}
+
+/* === Contribution Bar === */
+.contrib-bar-positive {
+  background: linear-gradient(90deg, rgba(0, 230, 138, 0.3), var(--accent-green));
+}
+
+.contrib-bar-negative {
+  background: linear-gradient(90deg, var(--accent-red), rgba(255, 71, 87, 0.3));
+}
+
+/* === Heatmap Cell === */
+.heatmap-cell {
+  border-radius: 6px;
+  transition: transform 0.2s;
+  cursor: default;
+}
+
+.heatmap-cell:hover {
+  transform: scale(1.1);
+  z-index: 10;
+}
+
+/* === Disclaimer Bar === */
+.disclaimer-bar {
+  background: rgba(255, 193, 7, 0.08);
+  border-top: 1px solid rgba(255, 193, 7, 0.2);
+}
+
+/* === Scrollbar === */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* === Responsive Container === */
+.dashboard-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+@media (min-width: 768px) {
+  .dashboard-container {
+    padding: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-container {
+    padding: 32px;
+  }
+}
+
+/* === Fade-in animation === */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.animate-fade-in-delay-1 { animation-delay: 0.1s; opacity: 0; }
+.animate-fade-in-delay-2 { animation-delay: 0.2s; opacity: 0; }
+.animate-fade-in-delay-3 { animation-delay: 0.3s; opacity: 0; }
+.animate-fade-in-delay-4 { animation-delay: 0.4s; opacity: 0; }
+.animate-fade-in-delay-5 { animation-delay: 0.5s; opacity: 0; }
