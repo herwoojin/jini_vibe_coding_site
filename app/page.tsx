@@ -3,14 +3,18 @@ import MarketTabs from '@/components/dashboard/MarketTabs';
 import MacroCards from '@/components/dashboard/MacroCards';
 import CorrelationHeatmap from '@/components/dashboard/CorrelationHeatmap';
 import OvernightPanel from '@/components/dashboard/OvernightPanel';
+import AIAnalysisPanel from '@/components/dashboard/AIAnalysisPanel';
 import { getDashboardData } from '@/lib/data/dashboard';
+import { getAiAnalysis } from '@/lib/ai/analysis';
 import { markets, indicators } from '@/lib/mock/data';
 
-// 무료 소스(FRED/ECOS)는 전일 종가 기반이므로 시간당 1회 재계산이면 충분하다.
-export const revalidate = 3600;
+// 페이지는 10분마다 재생성 — AI 분석 슬롯(07:50/12:00/15:10) 경계를 빠르게 반영하기 위함.
+// 데이터 API 는 어댑터 fetch 의 1시간 캐시, Gemini 는 슬롯당 1회 캐시가 각각 지키므로
+// 페이지 재생성이 잦아져도 외부 호출은 늘지 않는다.
+export const revalidate = 600;
 
 export default async function Dashboard() {
-  const data = await getDashboardData();
+  const [data, ai] = await Promise.all([getDashboardData(), getAiAnalysis()]);
 
   const liveCards = data.macroCards.filter(c => c.origin === 'live');
   const liveSources = [...new Set(liveCards.map(c => c.indicator.source))];
@@ -31,6 +35,9 @@ export default async function Dashboard() {
 
       {/* 3시장 신호 히어로 */}
       <SignalHero signals={data.signals} origin={data.signalsOrigin} asOf={data.signalsAsOf} />
+
+      {/* AI 시장 분석 (Gemini, 일 3회 슬롯 갱신) */}
+      <AIAnalysisPanel data={ai} />
 
       {/* 2열 레이아웃: 상세분석 + 거시지표 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
