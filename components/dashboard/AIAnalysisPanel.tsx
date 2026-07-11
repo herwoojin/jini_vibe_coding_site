@@ -25,9 +25,16 @@ export default function AIAnalysisPanel({ data }: { data: SlottedAnalysis | null
         하루 3회(07:50 · 12:00 · 15:10 KST)만 갱신됩니다. 그 사이 접속은 같은 분석을 봅니다.
       </p>
 
+      {data?.stale && (
+        <p className="text-xs mb-3 px-2 py-1.5 rounded bg-[var(--accent-yellow-dim)] text-[var(--accent-yellow)]">
+          ⚠️ 이번 슬롯 분석이 아직 없어 가장 최근 분석({data.slot.label})을 보여드립니다. 다음
+          방문 시 자동으로 재시도합니다.
+        </p>
+      )}
+
       {!data ? (
         <p className="text-sm text-[var(--text-secondary)]">
-          이번 슬롯의 AI 분석을 가져오지 못했습니다. 다음 방문 시 자동으로 재시도합니다.
+          아직 첫 AI 분석이 없습니다. 다음 방문 시 자동으로 시도합니다.
         </p>
       ) : (
         <>
