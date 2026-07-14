@@ -6,18 +6,23 @@
  * 서버가 UTC(Netlify)여도 KST 로 계산한다.
  */
 
-/** 슬롯 경계 (KST, 분 단위): 07:50, 12:00, 15:10 */
+/** 슬롯 경계 (KST, 분 단위): 05:30, 12:00, 15:10 */
 const SLOT_BOUNDARIES = [
-  { minutes: 7 * 60 + 50, label: '07:50' },
+  { minutes: 5 * 60 + 30, label: '05:30' },
   { minutes: 12 * 60, label: '12:00' },
   { minutes: 15 * 60 + 10, label: '15:10' },
 ];
+
+/** 새벽 슬롯 — 미국 증시 마감 직후라 미 증시 주도 흐름을 함께 분석한다. */
+export const DAWN_SLOT_LABEL = '05:30';
 
 export interface Slot {
   /** 캐시 키. 예: "2026-07-10#12:00" */
   key: string;
   /** 화면 표기. 예: "2026-07-10 12:00 기준" */
   label: string;
+  /** 05:30 슬롯 여부 — 미 증시 마감 직후이므로 미국장 주도 흐름을 함께 분석한다. */
+  isDawn: boolean;
 }
 
 /** KST 기준 (날짜문자열, 자정 이후 경과 분) */
@@ -59,7 +64,15 @@ export function currentSlot(now: Date = new Date()): Slot {
   if (!boundary) {
     const d = prevDate(date);
     const last = SLOT_BOUNDARIES[SLOT_BOUNDARIES.length - 1];
-    return { key: `${d}#${last.label}`, label: `${d} ${last.label} 기준` };
+    return {
+      key: `${d}#${last.label}`,
+      label: `${d} ${last.label} 기준`,
+      isDawn: last.label === DAWN_SLOT_LABEL,
+    };
   }
-  return { key: `${date}#${boundary.label}`, label: `${date} ${boundary.label} 기준` };
+  return {
+    key: `${date}#${boundary.label}`,
+    label: `${date} ${boundary.label} 기준`,
+    isDawn: boundary.label === DAWN_SLOT_LABEL,
+  };
 }

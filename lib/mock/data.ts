@@ -27,6 +27,12 @@ export const indicators: Indicator[] = [
   { id: 10, code: 'NASDAQCOM', name: '나스닥 종합', category: 'index', source: 'fred', unit: 'pt', realtime: false },
   { id: 11, code: 'KOSPI', name: '코스피', category: 'index', source: 'ecos', unit: 'pt', realtime: false },
   { id: 12, code: 'KOSDAQ', name: '코스닥', category: 'index', source: 'ecos', unit: 'pt', realtime: false },
+  // 미 증시 주도 흐름 판단용 (05:30 슬롯). 나스닥100 vs 다우 = 성장주 vs 가치주 로테이션,
+  // VIX = 위험선호. 진짜 섹터 ETF(XLK 등)는 무료 소스에 없어 이 지수들로 대신한다.
+  { id: 13, code: 'NDX', name: '나스닥 100', category: 'index', source: 'fred', unit: 'pt', realtime: false },
+  { id: 14, code: 'SP500', name: 'S&P 500', category: 'index', source: 'fred', unit: 'pt', realtime: false },
+  { id: 15, code: 'DJIA', name: '다우 산업', category: 'index', source: 'fred', unit: 'pt', realtime: false },
+  { id: 16, code: 'VIX', name: 'VIX 변동성', category: 'index', source: 'fred', unit: 'pt', realtime: false },
 ];
 
 // === Market Weights (ERD 4번 시드) ===

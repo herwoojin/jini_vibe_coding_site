@@ -8,10 +8,12 @@ import { getDashboardData } from '@/lib/data/dashboard';
 import { getAiAnalysis } from '@/lib/ai/analysis';
 import { markets, indicators } from '@/lib/mock/data';
 
-// 페이지는 10분마다 재생성 — AI 분석 슬롯(07:50/12:00/15:10) 경계를 빠르게 반영하기 위함.
-// 데이터 API 는 어댑터 fetch 의 1시간 캐시, Gemini 는 슬롯당 1회 캐시가 각각 지키므로
-// 페이지 재생성이 잦아져도 외부 호출은 늘지 않는다.
-export const revalidate = 600;
+// 요청마다 렌더한다(no-store). ISR 로 캐싱하면 슬롯 경계(05:30/12:00/15:10) 직후
+// 새로고침해도 CDN·모바일 브라우저가 옛 HTML 을 돌려줘 "갱신이 안 보이는" 문제가 생긴다.
+//
+// 외부 호출은 늘지 않는다: revalidate=0 은 양수 revalidate 를 지정한 fetch 를 그대로 두므로
+// 어댑터의 1시간 fetch 캐시가 유지되고, Gemini 는 자체 슬롯 저장소가 1일 3회로 묶는다.
+export const revalidate = 0;
 
 export default async function Dashboard() {
   const [data, ai] = await Promise.all([getDashboardData(), getAiAnalysis()]);

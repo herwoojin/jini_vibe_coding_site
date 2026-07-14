@@ -37,7 +37,7 @@ export async function getAiAnalysis(): Promise<SlottedAnalysis | null> {
         inflight = (async () => {
           console.log(`[ai] Gemini 호출 (슬롯 ${slot.key}) — 슬롯당 1번만 보여야 정상`);
           const dashboard = await getDashboardData();
-          const analysis = await analyzeWithGemini(dashboard);
+          const analysis = await analyzeWithGemini(dashboard, slot.isDawn);
           const record = { analysis, slot };
           await storeSet(slotKeyOf(slot), record);
           await storeSet(LATEST_KEY, record);

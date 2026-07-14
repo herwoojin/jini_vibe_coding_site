@@ -30,6 +30,11 @@ export async function fetchAllSeries(): Promise<Map<string, Bar[]>> {
     { symbol: 'WTI', adapters: [fred] },
     { symbol: 'XBR', adapters: [fred] },
     { symbol: 'DXY', adapters: [fred] }, // 광의 달러지수(DTWEXBGS) — 무료 티어에 ICE DXY 없음
+    // 미 증시 주도 흐름 (05:30 슬롯 분석용)
+    { symbol: 'NDX', adapters: [fred] },
+    { symbol: 'SP500', adapters: [fred] },
+    { symbol: 'DJIA', adapters: [fred] },
+    { symbol: 'VIX', adapters: [fred] },
     { symbol: 'KR3Y', adapters: [ecos] },
     { symbol: 'BASE_KR', adapters: [ecos] },
     { symbol: 'USD/KRW', adapters: [twelve, ecos] },

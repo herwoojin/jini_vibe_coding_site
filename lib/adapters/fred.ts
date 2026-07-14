@@ -12,6 +12,10 @@ interface FredObservation {
 const SERIES_ID: Record<string, string> = {
   WTI: 'DCOILWTICO',
   XBR: 'DCOILBRENTEU',
+  NDX: 'NASDAQ100',
+  SP500: 'SP500',
+  DJIA: 'DJIA',
+  VIX: 'VIXCLS',
   // ICE DXY 는 유료 라이선스라 무료 소스가 없다. 연준 광의 달러지수로 대체하고
   // UI 라벨도 '광의 달러지수' 로 바꿨다. 구성통화·기준연도가 다른 별개 지수다.
   DXY: 'DTWEXBGS',

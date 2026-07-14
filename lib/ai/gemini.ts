@@ -17,34 +17,81 @@ export interface AiMarketOpinion {
   reasons: string[];
 }
 
+/** 05:30 슬롯 전용 — 미 증시 마감 직후의 주도 흐름 판단 */
+export interface AiUsMarket {
+  /** 나스닥 종합 방향: 상승/하락/보합 */
+  nasdaq_direction: '상승' | '하락' | '보합';
+  /** 주도 스타일: 성장주 우위 / 가치주 우위 / 혼조 */
+  leadership: '성장주 우위' | '가치주 우위' | '혼조';
+  /** 위험선호: 개선 / 악화 / 중립 (VIX 기준) */
+  risk_appetite: '개선' | '악화' | '중립';
+  /** 위 판단의 수치 근거 3~5개 */
+  notes: string[];
+}
+
 export interface AiAnalysis {
   markets: AiMarketOpinion[];
   overall: string;
+  /** 05:30 슬롯에서만 채워진다 */
+  us_market?: AiUsMarket;
 }
 
-const RESPONSE_SCHEMA = {
+const MARKETS_SCHEMA = {
+  type: 'ARRAY',
+  items: {
+    type: 'OBJECT',
+    properties: {
+      market_code: { type: 'STRING' },
+      market_name: { type: 'STRING' },
+      opinion: { type: 'STRING', enum: ['매수', '중립', '매도'] },
+      confidence: { type: 'STRING', enum: ['높음', '중간', '낮음'] },
+      reasons: { type: 'ARRAY', items: { type: 'STRING' } },
+    },
+    required: ['market_code', 'market_name', 'opinion', 'confidence', 'reasons'],
+  },
+};
+
+const US_MARKET_SCHEMA = {
   type: 'OBJECT',
   properties: {
-    markets: {
-      type: 'ARRAY',
-      items: {
-        type: 'OBJECT',
-        properties: {
-          market_code: { type: 'STRING' },
-          market_name: { type: 'STRING' },
-          opinion: { type: 'STRING', enum: ['매수', '중립', '매도'] },
-          confidence: { type: 'STRING', enum: ['높음', '중간', '낮음'] },
-          reasons: { type: 'ARRAY', items: { type: 'STRING' } },
-        },
-        required: ['market_code', 'market_name', 'opinion', 'confidence', 'reasons'],
-      },
-    },
-    overall: { type: 'STRING' },
+    nasdaq_direction: { type: 'STRING', enum: ['상승', '하락', '보합'] },
+    leadership: { type: 'STRING', enum: ['성장주 우위', '가치주 우위', '혼조'] },
+    risk_appetite: { type: 'STRING', enum: ['개선', '악화', '중립'] },
+    notes: { type: 'ARRAY', items: { type: 'STRING' } },
   },
-  required: ['markets', 'overall'],
-} as const;
+  required: ['nasdaq_direction', 'leadership', 'risk_appetite', 'notes'],
+};
 
-function buildPrompt(d: DashboardData): string {
+/** 새벽 슬롯에서만 us_market 을 요구한다. */
+function responseSchema(isDawn: boolean) {
+  return isDawn
+    ? {
+        type: 'OBJECT',
+        properties: { markets: MARKETS_SCHEMA, overall: { type: 'STRING' }, us_market: US_MARKET_SCHEMA },
+        required: ['markets', 'overall', 'us_market'],
+      }
+    : {
+        type: 'OBJECT',
+        properties: { markets: MARKETS_SCHEMA, overall: { type: 'STRING' } },
+        required: ['markets', 'overall'],
+      };
+}
+
+/** 새벽 슬롯 전용 지시문 — 미 증시 마감 직후의 주도 흐름을 판단시킨다. */
+const DAWN_INSTRUCTIONS = [
+  '',
+  '## 추가 과제 (us_market) — 미국 증시 마감 직후 분석',
+  '아래 미국 지수 데이터로 다음 3가지를 판단하고 notes 에 수치 근거를 3~5개 써라.',
+  '1) nasdaq_direction: 나스닥 종합(NASDAQCOM)이 전일 대비 상승했는지 하락했는지 (±0.1% 미만이면 보합).',
+  '2) leadership: 나스닥100(NDX, 성장주 대표)과 다우 산업(DJIA, 가치·경기민감 대표)의 전일 대비',
+  '   변화율을 비교하라. NDX 가 더 오르면 "성장주 우위", DJIA 가 더 오르면 "가치주 우위",',
+  '   차이가 0.2%p 미만이면 "혼조". 반드시 두 지수의 변화율을 모두 인용하라.',
+  '3) risk_appetite: VIX 가 하락하면 위험선호 "개선", 상승하면 "악화", ±3% 이내면 "중립".',
+  '주의: 이 데이터에는 야간 선물지수와 개별 업종(섹터) ETF 가 없다. 선물이나 특정 섹터',
+  '(반도체·금융·에너지 등)의 등락을 지어내지 마라. 지수 간 상대 강도로만 주도 스타일을 말하라.',
+].join('\n');
+
+function buildPrompt(d: DashboardData, isDawn: boolean): string {
   const indicators = d.macroCards.map(c => ({
     지표: c.indicator.name,
     값: c.current,
@@ -77,11 +124,12 @@ function buildPrompt(d: DashboardData): string {
     '',
     '## 규칙엔진 신호 (z-score 기반, 참고용 — 동의하지 않으면 다른 의견을 내도 된다)',
     JSON.stringify(signals, null, 1),
+    isDawn ? DAWN_INSTRUCTIONS : '',
   ].join('\n');
 }
 
 /** Gemini 1회 호출. 실패 시 예외 — 호출부(슬롯 캐시)가 실패를 캐시하지 않도록 던진다. */
-export async function analyzeWithGemini(d: DashboardData): Promise<AiAnalysis> {
+export async function analyzeWithGemini(d: DashboardData, isDawn = false): Promise<AiAnalysis> {
   const key = process.env.GEMINI_KEY;
   if (!key) throw new Error('GEMINI_KEY is not set');
 
@@ -89,11 +137,11 @@ export async function analyzeWithGemini(d: DashboardData): Promise<AiAnalysis> {
     method: 'POST',
     headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: buildPrompt(d) }] }],
+      contents: [{ parts: [{ text: buildPrompt(d, isDawn) }] }],
       generationConfig: {
         temperature: 0.2,
         responseMimeType: 'application/json',
-        responseSchema: RESPONSE_SCHEMA,
+        responseSchema: responseSchema(isDawn),
       },
     }),
     // POST 는 Next 가 캐시하지 않지만, 의도를 명시한다 — 캐시는 슬롯 계층의 책임이다.

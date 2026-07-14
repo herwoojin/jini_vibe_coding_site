@@ -51,6 +51,14 @@ export default function RootLayout({
               </span>
             </div>
           </div>
+
+          {/* AI 분석 갱신 주기 — 방문자가 언제 새 분석을 보게 되는지 항상 알려준다 */}
+          <div className="dashboard-container pb-2 -mt-1">
+            <p className="text-[11px] text-[var(--text-tertiary)] leading-snug">
+              🤖 AI 분석은 하루 3회(<strong className="text-[var(--text-secondary)]">05:30 · 12:00 · 15:10 KST</strong>)만
+              갱신됩니다. 그 사이 접속은 같은 분석을 봅니다.
+            </p>
+          </div>
         </header>
 
         {/* Main Content */}
