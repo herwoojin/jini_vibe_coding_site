@@ -59,6 +59,7 @@ export default async function Dashboard() {
           metrics={data.overnight.metrics}
           date={data.overnight.date}
           origin={data.overnight.origin}
+          impact={data.overnight.impact}
         />
       </div>
     </div>

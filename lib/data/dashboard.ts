@@ -2,6 +2,7 @@ import { fetchAllSeries } from './series';
 import { computeMarketScore } from '../engine/signal';
 import { correlateBars } from '../engine/correlation';
 import { ruleBasedBriefing } from '../engine/briefing';
+import { buildOvernightImpact, type OvernightImpact } from '../engine/overnight-impact';
 import {
   markets,
   indicators,
@@ -38,7 +39,13 @@ export interface DashboardData {
   signalsAsOf: string;
   correlations: Correlation[];
   correlationsOrigin: DataOrigin;
-  overnight: { date: string; metrics: OvernightMetric[]; origin: DataOrigin };
+  overnight: {
+    date: string;
+    metrics: OvernightMetric[];
+    origin: DataOrigin;
+    /** 오늘 한국 증시에 미칠 영향 (실측 신호가 있을 때만) */
+    impact: OvernightImpact | null;
+  };
 }
 
 /** 시장 코드 → 상관/신호 계산에서 그 시장을 대표하는 지수 시계열 */
@@ -56,11 +63,22 @@ const MARKET_INDEX: Record<string, string> = {
 export async function getDashboardData(): Promise<DashboardData> {
   const series = await fetchAllSeries();
 
+  const macroCards = buildMacroCards(series);
+  const signalPart = buildSignals(series);
+  const overnight = buildOvernight(series);
+
   return {
-    macroCards: buildMacroCards(series),
-    ...buildSignals(series),
+    macroCards,
+    ...signalPart,
     ...buildCorrelations(series),
-    overnight: buildOvernight(series),
+    overnight: {
+      ...overnight,
+      // 실측 신호가 있을 때만 영향 해설을 붙인다 (목업 위에 해설을 얹지 않는다).
+      impact:
+        signalPart.signalsOrigin === 'live'
+          ? buildOvernightImpact(signalPart.signals, macroCards)
+          : null,
+    },
   };
 }
 
@@ -206,7 +224,9 @@ function buildCorrelations(series: Map<string, Bar[]>): {
 
 // === 밤사이 스냅샷 ===
 
-function buildOvernight(series: Map<string, Bar[]>): DashboardData['overnight'] {
+function buildOvernight(
+  series: Map<string, Bar[]>,
+): Omit<DashboardData['overnight'], 'impact'> {
   const last = (code: string) => {
     const bars = series.get(code);
     return bars && bars.length > 0 ? bars[bars.length - 1] : null;
