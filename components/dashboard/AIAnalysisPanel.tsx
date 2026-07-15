@@ -1,8 +1,52 @@
 import type { SlottedAnalysis } from '@/lib/ai/analysis';
 import type { AiUsMarket } from '@/lib/ai/gemini';
+import type { SectorSnapshot } from '@/lib/data/sectors';
+
+/** 밤사이 미 섹터 등락률 막대 */
+function SectorBars({ snapshot }: { snapshot: SectorSnapshot }) {
+  const max = Math.max(...snapshot.sectors.map(s => Math.abs(s.changePct)), 0.1);
+  return (
+    <div className="mt-3">
+      <p className="text-xs font-semibold text-[var(--text-secondary)] mb-2">
+        📊 밤사이 미 업종별 등락 (전일 종가)
+      </p>
+      <div className="space-y-1.5">
+        {snapshot.sectors.map(s => {
+          const up = s.changePct >= 0;
+          const width = Math.max((Math.abs(s.changePct) / max) * 100, 3);
+          return (
+            <div key={s.code} className="flex items-center gap-2 text-[11px]">
+              <span className="w-24 shrink-0 text-[var(--text-secondary)]">
+                {s.name}
+                <span className="text-[var(--text-tertiary)]"> · {s.korea}</span>
+              </span>
+              <div className="flex-1 h-3 rounded bg-[rgba(255,255,255,0.04)] overflow-hidden">
+                <div
+                  className="h-full rounded"
+                  style={{
+                    width: `${width}%`,
+                    background: up ? 'var(--positive)' : 'var(--negative)',
+                    opacity: 0.55,
+                  }}
+                />
+              </div>
+              <span
+                className="w-14 shrink-0 text-right font-mono"
+                style={{ color: up ? 'var(--positive)' : 'var(--negative)' }}
+              >
+                {up ? '+' : ''}
+                {s.changePct.toFixed(2)}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 /** 05:30 슬롯 — 미 증시 마감 직후 주도 흐름 */
-function UsMarketBlock({ us }: { us: AiUsMarket }) {
+function UsMarketBlock({ us, sectors }: { us: AiUsMarket; sectors?: SectorSnapshot | null }) {
   const dirColor =
     us.nasdaq_direction === '상승'
       ? 'var(--positive)'
@@ -15,6 +59,8 @@ function UsMarketBlock({ us }: { us: AiUsMarket }) {
       : us.risk_appetite === '악화'
         ? 'var(--negative)'
         : 'var(--accent-yellow)';
+
+  const hasSectors = sectors && sectors.sectors.length > 0;
 
   return (
     <div className="mb-4 p-3 rounded-xl bg-[rgba(255,255,255,0.03)] border border-[var(--card-border)]">
@@ -37,9 +83,19 @@ function UsMarketBlock({ us }: { us: AiUsMarket }) {
           </li>
         ))}
       </ul>
+
+      {hasSectors && <SectorBars snapshot={sectors} />}
+
+      {us.sector_comment && (
+        <p className="text-xs text-[var(--text-secondary)] leading-relaxed mt-2 pt-2 border-t border-[var(--card-border)]">
+          {us.sector_comment}
+        </p>
+      )}
+
       <p className="text-[10px] text-[var(--text-tertiary)] mt-2">
-        ※ 무료 데이터에 야간 선물지수·업종별 ETF가 없어, 나스닥100(성장) vs 다우(가치) 상대
-        강도와 VIX로 주도 스타일을 추정합니다.
+        {hasSectors
+          ? '※ 미 SPDR 업종 ETF 전일 등락률과 나스닥100·다우·VIX 를 종합한 것으로, 야간 선물지수는 무료 데이터에 없어 제외됩니다.'
+          : '※ 무료 데이터에 야간 선물지수·업종별 ETF가 없어, 나스닥100(성장) vs 다우(가치) 상대 강도와 VIX로 주도 스타일을 추정합니다.'}
       </p>
     </div>
   );
@@ -79,7 +135,9 @@ export default function AIAnalysisPanel({ data }: { data: SlottedAnalysis | null
         </p>
       ) : (
         <>
-          {data.analysis.us_market && <UsMarketBlock us={data.analysis.us_market} />}
+          {data.analysis.us_market && (
+            <UsMarketBlock us={data.analysis.us_market} sectors={data.sectors} />
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
             {data.analysis.markets.map(m => {

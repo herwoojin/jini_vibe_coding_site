@@ -2,16 +2,19 @@ import { currentSlot, type Slot } from './slots';
 import { analyzeWithGemini, type AiAnalysis } from './gemini';
 import { storeGet, storeSet } from './store';
 import { getDashboardData, type DashboardData } from '../data/dashboard';
+import { fetchSectorSnapshot, type SectorSnapshot } from '../data/sectors';
 
 export interface SlottedAnalysis {
   analysis: AiAnalysis;
   /** 이 분석이 실제로 수행된 슬롯 (stale 이면 현재 슬롯보다 과거) */
   slot: Slot;
+  /** 밤사이 미 섹터 등락 스냅샷 (05:30 슬롯에서만) */
+  sectors?: SectorSnapshot | null;
   /** true = 현재 슬롯 분석이 아직 없어 직전 성공본을 보여주는 중 */
   stale: boolean;
 }
 
-type Record_ = { analysis: AiAnalysis; slot: Slot };
+type Record_ = { analysis: AiAnalysis; slot: Slot; sectors?: SectorSnapshot | null };
 
 const LATEST_KEY = 'latest';
 const slotKeyOf = (s: Slot) => `slot:${s.key}`;
@@ -61,8 +64,10 @@ export async function generateIfMissing(
       // 페이지가 이미 가져온 데이터를 재사용하면 after() 생성이 Gemini 호출 시간(~5초)으로
       // 줄어 Netlify 무료 티어(10초)에서도 안전하게 끝난다.
       const dashboard = prefetched ?? (await getDashboardData());
-      const analysis = await analyzeWithGemini(dashboard, slot.isDawn);
-      const record: Record_ = { analysis, slot };
+      // 섹터는 05:30 슬롯에서만, 하루 1회 조회한다 (실패해도 분석은 진행).
+      const sectors = slot.isDawn ? await fetchSectorSnapshot() : null;
+      const analysis = await analyzeWithGemini(dashboard, slot.isDawn, sectors);
+      const record: Record_ = { analysis, slot, sectors };
       await storeSet(slotKeyOf(slot), record);
       await storeSet(LATEST_KEY, record);
     } catch (err) {
