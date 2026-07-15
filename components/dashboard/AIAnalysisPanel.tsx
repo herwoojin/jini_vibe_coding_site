@@ -75,7 +75,7 @@ export default function AIAnalysisPanel({ data }: { data: SlottedAnalysis | null
 
       {!data ? (
         <p className="text-sm text-[var(--text-secondary)]">
-          아직 첫 AI 분석이 없습니다. 다음 방문 시 자동으로 시도합니다.
+          첫 AI 분석을 생성하고 있습니다. 잠시 후 새로고침하면 표시됩니다.
         </p>
       ) : (
         <>

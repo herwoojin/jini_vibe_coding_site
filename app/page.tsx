@@ -3,9 +3,11 @@ import MarketTabs from '@/components/dashboard/MarketTabs';
 import MacroCards from '@/components/dashboard/MacroCards';
 import CorrelationHeatmap from '@/components/dashboard/CorrelationHeatmap';
 import OvernightPanel from '@/components/dashboard/OvernightPanel';
+import { after } from 'next/server';
 import AIAnalysisPanel from '@/components/dashboard/AIAnalysisPanel';
 import { getDashboardData } from '@/lib/data/dashboard';
-import { getAiAnalysis } from '@/lib/ai/analysis';
+import { readAnalysis, needsGeneration, generateIfMissing } from '@/lib/ai/analysis';
+import { currentSlot } from '@/lib/ai/slots';
 import { markets, indicators } from '@/lib/mock/data';
 
 // 요청마다 렌더한다(no-store). ISR 로 캐싱하면 슬롯 경계(05:30/12:00/15:10) 직후
@@ -14,9 +16,22 @@ import { markets, indicators } from '@/lib/mock/data';
 // 외부 호출은 늘지 않는다: revalidate=0 은 양수 revalidate 를 지정한 fetch 를 그대로 두므로
 // 어댑터의 1시간 fetch 캐시가 유지되고, Gemini 는 자체 슬롯 저장소가 1일 3회로 묶는다.
 export const revalidate = 0;
+// after() 의 백그라운드 생성이 플랫폼 상한까지 돌 수 있게 한다 (지원 플랫폼에서만 적용).
+export const maxDuration = 60;
 
 export default async function Dashboard() {
-  const [data, ai] = await Promise.all([getDashboardData(), getAiAnalysis()]);
+  const slot = currentSlot();
+  const [data, ai, mustGenerate] = await Promise.all([
+    getDashboardData(),
+    readAnalysis(slot), // 저장소만 읽는다 — Gemini 를 기다리지 않아 렌더가 빠르다
+    needsGeneration(slot),
+  ]);
+
+  // 현재 슬롯 분석이 없으면 응답을 보낸 뒤 생성한다 (사용자 렌더를 막지 않음).
+  // 이번 방문자는 직전 분석(stale)을 즉시 보고, 다음 방문자는 새 분석을 본다.
+  if (mustGenerate) {
+    after(() => generateIfMissing(slot, data));
+  }
 
   const liveCards = data.macroCards.filter(c => c.origin === 'live');
   const liveSources = [...new Set(liveCards.map(c => c.indicator.source))];
