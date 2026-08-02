@@ -40,6 +40,44 @@ export async function readAnalysis(slot: Slot = currentSlot()): Promise<SlottedA
   return null;
 }
 
+/**
+ * 화면에 보여줄 분석을 확보한다.
+ *
+ * - 이전 분석이 하나라도 있으면: 즉시 그것을 반환하고, 새 슬롯 생성은 호출부가
+ *   응답 이후(after)에 돌린다 → 렌더가 빠르다.
+ * - 이전 분석이 전혀 없으면(최초 배포·캐시 소실): 여기서 기다렸다가 생성한다.
+ *   빈 패널을 보여주느니 몇 초 기다리는 편이 낫다는 요청 사양이다.
+ */
+/**
+ * 인라인 생성을 기다리는 한도.
+ * Netlify 함수 타임아웃(무료 10초)을 넘기면 페이지 자체가 죽으므로,
+ * 여기서 끊고 백그라운드에 넘긴다 — 그 방문자는 '생성 중'을 보지만
+ * 생성은 계속되어 다음 새로고침에 나온다.
+ */
+const INLINE_DEADLINE_MS = 6_000;
+
+export async function ensureAnalysis(
+  slot: Slot = currentSlot(),
+  prefetched?: DashboardData,
+): Promise<SlottedAnalysis | null> {
+  const existing = await readAnalysis(slot);
+  if (existing) return existing;
+  if (!process.env.GEMINI_KEY) return null;
+
+  // 보여줄 것이 하나도 없을 때만 기다린다. 단, 무한정 기다리지 않는다.
+  const generation = generateIfMissing(slot, prefetched);
+  const finished = await Promise.race([
+    generation.then(() => true),
+    new Promise<false>(r => setTimeout(() => r(false), INLINE_DEADLINE_MS)),
+  ]);
+
+  if (!finished) {
+    console.warn(`[ai] 슬롯 ${slot.key} 인라인 생성이 ${INLINE_DEADLINE_MS}ms 초과 — 백그라운드로 넘김`);
+    return null;
+  }
+  return readAnalysis(slot);
+}
+
 /** 현재 슬롯 분석이 필요한가? (없고, 키가 있을 때만 생성 대상) */
 export async function needsGeneration(slot: Slot = currentSlot()): Promise<boolean> {
   if (!process.env.GEMINI_KEY) return false;

@@ -10,19 +10,37 @@
  * 않고, "마지막 성공본" 폴백을 위해 키를 나열/갱신할 수단이 필요하기 때문.
  */
 import { promises as fs } from 'fs';
+import os from 'os';
 import path from 'path';
 
-const FILE = path.join(process.cwd(), '.cache', 'ai-analysis.json');
 const BLOB_STORE = 'ai-analysis';
 
+/**
+ * 파일 폴백 경로.
+ * 서버리스(Netlify Functions)에서는 프로젝트 디렉터리가 읽기 전용이라
+ * process.cwd() 아래에 쓰면 조용히 실패한다 — 그러면 캐시가 인메모리로만 남고
+ * 인스턴스가 바뀔 때마다 사라져 "생성 중" 문구가 영원히 뜬다.
+ * 쓰기 가능한 임시 디렉터리를 쓴다 (로컬 개발에서는 프로젝트 .cache 를 유지).
+ */
+const FILE = process.env.NETLIFY
+  ? path.join(os.tmpdir(), 'macrosignal-ai-analysis.json')
+  : path.join(process.cwd(), '.cache', 'ai-analysis.json');
+
 const memory = new Map<string, unknown>();
+
+let blobWarned = false;
 
 async function blobs() {
   try {
     const { getStore } = await import('@netlify/blobs');
     return getStore(BLOB_STORE);
-  } catch {
-    return null; // Netlify 밖이거나 패키지/환경 미구성
+  } catch (err) {
+    // 원인을 삼키면 배포 환경에서 왜 캐시가 안 되는지 알 수 없다. 한 번만 남긴다.
+    if (!blobWarned) {
+      blobWarned = true;
+      console.warn('[store] Netlify Blobs 사용 불가 — 파일/메모리로 폴백:', err);
+    }
+    return null;
   }
 }
 
@@ -63,7 +81,9 @@ export async function storeSet(key: string, value: unknown): Promise<void> {
     const map = await readFileMap();
     map[key] = value;
     await fs.writeFile(FILE, JSON.stringify(map), 'utf8');
-  } catch {
-    // 읽기 전용 FS(서버리스 로컬 폴백 실패 등) — 인메모리만으로 동작
+  } catch (err) {
+    // 여기까지 실패하면 인메모리로만 동작한다 — 인스턴스가 바뀌면 사라지므로
+    // 원인을 반드시 남긴다 (배포 환경 디버깅의 유일한 단서).
+    console.warn('[store] 파일 저장 실패, 인메모리로만 유지:', err);
   }
 }

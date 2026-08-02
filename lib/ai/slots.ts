@@ -6,12 +6,16 @@
  * 서버가 UTC(Netlify)여도 KST 로 계산한다.
  */
 
-/** 슬롯 경계 (KST, 분 단위): 05:30, 12:00, 15:10 */
+/** 슬롯 경계 (KST, 분 단위): 05:30 · 09:00 · 12:00 · 15:10 — 하루 4회 */
 const SLOT_BOUNDARIES = [
-  { minutes: 5 * 60 + 30, label: '05:30' },
-  { minutes: 12 * 60, label: '12:00' },
-  { minutes: 15 * 60 + 10, label: '15:10' },
+  { minutes: 5 * 60 + 30, label: '05:30' }, // 미 증시 마감 직후
+  { minutes: 9 * 60, label: '09:00' }, // 국내 장 시작
+  { minutes: 12 * 60, label: '12:00' }, // 장중
+  { minutes: 15 * 60 + 10, label: '15:10' }, // 장 마감 무렵
 ];
+
+/** UI 표기용 (헤더 문구와 슬롯 정의가 어긋나지 않게 여기서 파생시킨다) */
+export const SLOT_LABELS = SLOT_BOUNDARIES.map(b => b.label);
 
 /** 새벽 슬롯 — 미국 증시 마감 직후라 미 증시 주도 흐름을 함께 분석한다. */
 export const DAWN_SLOT_LABEL = '05:30';

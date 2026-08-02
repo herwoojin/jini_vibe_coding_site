@@ -7,7 +7,7 @@ import { after } from 'next/server';
 import AIAnalysisPanel from '@/components/dashboard/AIAnalysisPanel';
 import { getDashboardData } from '@/lib/data/dashboard';
 import DividendCalendar from '@/components/dashboard/DividendCalendar';
-import { readAnalysis, needsGeneration, generateIfMissing } from '@/lib/ai/analysis';
+import { ensureAnalysis, needsGeneration, generateIfMissing } from '@/lib/ai/analysis';
 import { currentSlot } from '@/lib/ai/slots';
 import {
   readDividends,
@@ -27,13 +27,16 @@ export const maxDuration = 60;
 
 export default async function Dashboard() {
   const slot = currentSlot();
-  const [data, ai, mustGenerate, dividends, mustRefreshDiv] = await Promise.all([
+  const [data, mustGenerate, dividends, mustRefreshDiv] = await Promise.all([
     getDashboardData(),
-    readAnalysis(slot), // 저장소만 읽는다 — Gemini 를 기다리지 않아 렌더가 빠르다
     needsGeneration(slot),
-    readDividends(), // 배당도 저장소만 읽는다 (조회는 10초 걸려 렌더를 막으면 안 된다)
+    readDividends(), // 배당은 저장소만 읽는다 (조회는 10초 걸려 렌더를 막으면 안 된다)
     needsDividendRefresh(),
   ]);
+
+  // 이전 분석이 있으면 즉시 반환하고, 없을 때만 여기서 기다렸다 생성한다.
+  // (최초 배포·캐시 소실 시 빈 패널 대신 실제 분석이 나오도록 하는 요청 사양)
+  const ai = await ensureAnalysis(slot, data);
 
   // 현재 슬롯 분석이 없으면 응답을 보낸 뒤 생성한다 (사용자 렌더를 막지 않음).
   // 이번 방문자는 직전 분석(stale)을 즉시 보고, 다음 방문자는 새 분석을 본다.
