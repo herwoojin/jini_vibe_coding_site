@@ -1,6 +1,7 @@
 import { FredAdapter } from '../adapters/fred';
 import { EcosAdapter } from '../adapters/ecos';
 import { TwelveDataAdapter } from '../adapters/twelvedata';
+import { fetchYahoo } from './yahoo';
 import type { Bar, DataSourceAdapter } from '../types';
 
 // 카드 스파크라인(30) + 상관계수 90d 창을 모두 감당하는 길이
@@ -43,6 +44,12 @@ export async function fetchAllSeries(): Promise<Map<string, Bar[]>> {
     { symbol: 'KOSDAQ', adapters: [ecos] },
   ];
 
+  // 금은 어댑터 체인 밖에서 받는다: FRED 의 LBMA 금 시세는 폐지돼 일별 현물이 없고,
+  // Yahoo 금 선물(GC=F)이 유일한 무료 일별 소스다.
+  const goldPromise = fetchYahoo('GC=F', '1y').then(q =>
+    q ? (['GOLD', q.bars.map(b => ({ ts: b.ts, close: b.close }))] as const) : null,
+  );
+
   const results = await Promise.all(
     chains.map(async ({ symbol, adapters }) => {
       for (const adapter of adapters) {
@@ -61,5 +68,7 @@ export async function fetchAllSeries(): Promise<Map<string, Bar[]>> {
     }),
   );
 
-  return new Map(results.filter((r): r is readonly [string, Bar[]] => r !== null));
+  const gold = await goldPromise;
+  const all = [...results, gold];
+  return new Map(all.filter((r): r is readonly [string, Bar[]] => r !== null));
 }

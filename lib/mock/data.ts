@@ -33,6 +33,8 @@ export const indicators: Indicator[] = [
   { id: 14, code: 'SP500', name: 'S&P 500', category: 'index', source: 'fred', unit: 'pt', realtime: false },
   { id: 15, code: 'DJIA', name: '다우 산업', category: 'index', source: 'fred', unit: 'pt', realtime: false },
   { id: 16, code: 'VIX', name: 'VIX 변동성', category: 'index', source: 'fred', unit: 'pt', realtime: false },
+  // 금: FRED 의 LBMA 금 시세는 폐지돼 일별 현물이 없다. Yahoo 금 선물(GC=F)을 쓴다.
+  { id: 17, code: 'GOLD', name: '금 (COMEX 선물)', category: 'commodity', source: 'yahoo', unit: 'USD/oz', realtime: false },
 ];
 
 // === Market Weights (ERD 4번 시드) ===

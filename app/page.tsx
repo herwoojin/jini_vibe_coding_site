@@ -6,8 +6,14 @@ import OvernightPanel from '@/components/dashboard/OvernightPanel';
 import { after } from 'next/server';
 import AIAnalysisPanel from '@/components/dashboard/AIAnalysisPanel';
 import { getDashboardData } from '@/lib/data/dashboard';
+import DividendCalendar from '@/components/dashboard/DividendCalendar';
 import { readAnalysis, needsGeneration, generateIfMissing } from '@/lib/ai/analysis';
 import { currentSlot } from '@/lib/ai/slots';
+import {
+  readDividends,
+  needsDividendRefresh,
+  refreshDividendsIfMissing,
+} from '@/lib/data/dividend-cache';
 import { markets, indicators } from '@/lib/mock/data';
 
 // 요청마다 렌더한다(no-store). ISR 로 캐싱하면 슬롯 경계(05:30/12:00/15:10) 직후
@@ -21,16 +27,22 @@ export const maxDuration = 60;
 
 export default async function Dashboard() {
   const slot = currentSlot();
-  const [data, ai, mustGenerate] = await Promise.all([
+  const [data, ai, mustGenerate, dividends, mustRefreshDiv] = await Promise.all([
     getDashboardData(),
     readAnalysis(slot), // 저장소만 읽는다 — Gemini 를 기다리지 않아 렌더가 빠르다
     needsGeneration(slot),
+    readDividends(), // 배당도 저장소만 읽는다 (조회는 10초 걸려 렌더를 막으면 안 된다)
+    needsDividendRefresh(),
   ]);
 
   // 현재 슬롯 분석이 없으면 응답을 보낸 뒤 생성한다 (사용자 렌더를 막지 않음).
   // 이번 방문자는 직전 분석(stale)을 즉시 보고, 다음 방문자는 새 분석을 본다.
   if (mustGenerate) {
     after(() => generateIfMissing(slot, data));
+  }
+  // 배당 유니버스는 하루 1회 갱신 — 마찬가지로 응답 이후에 돌린다.
+  if (mustRefreshDiv) {
+    after(() => refreshDividendsIfMissing());
   }
 
   const liveCards = data.macroCards.filter(c => c.origin === 'live');
@@ -61,6 +73,9 @@ export default async function Dashboard() {
         <MarketTabs signals={data.signals} origin={data.signalsOrigin} />
         <MacroCards cards={data.macroCards} />
       </div>
+
+      {/* 배당주 캘린더 (하루 1회 갱신) */}
+      <DividendCalendar data={dividends} />
 
       {/* 2열 레이아웃: 히트맵 + 밤사이 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

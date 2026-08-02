@@ -13,8 +13,8 @@ export interface Indicator {
   id: number;
   code: string;
   name: string;
-  category: 'rate' | 'fx' | 'oil' | 'index';
-  source: 'ecos' | 'fred' | 'twelvedata' | 'kis';
+  category: 'rate' | 'fx' | 'oil' | 'index' | 'commodity';
+  source: 'ecos' | 'fred' | 'twelvedata' | 'kis' | 'yahoo';
   unit: string;
   realtime: boolean;
 }

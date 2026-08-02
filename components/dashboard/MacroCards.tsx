@@ -12,10 +12,11 @@ const categoryLabels: Record<string, string> = {
   rate: '💰 금리',
   fx: '💱 환율',
   oil: '🛢️ 유가',
+  commodity: '🥇 원자재',
   index: '📊 지수',
 };
 
-const categoryOrder = ['rate', 'fx', 'oil', 'index'];
+const categoryOrder = ['rate', 'fx', 'oil', 'commodity', 'index'];
 
 export default function MacroCards({ cards }: MacroCardsProps) {
   // 카테고리별 그룹핑
