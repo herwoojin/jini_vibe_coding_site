@@ -6,6 +6,7 @@
 //   rule      : 변동성 기반 기계적 계산 (진입·손절·익절) — 예측이 아니라 규칙의 출력
 // 어느 것도 확정 공시가 아니며, 추정을 실측처럼 보이게 하지 않는다.
 import type { YahooBar, YahooDividend, YahooQuote } from '../data/yahoo';
+import type { DartDividend } from '../data/dart';
 
 export type DividendFrequency = '분기' | '반기' | '연간' | '불규칙';
 
@@ -65,6 +66,44 @@ export interface DividendStock {
   /** 규칙 계산 */
   plan: DividendPlan;
   scenario: DividendScenario;
+  /** 공시(DART) 기반 배당 지속가능성 — 키가 없거나 공시 전이면 null */
+  dart: DartDividend | null;
+  /** 공시 배당성향으로 본 지속가능성 판정 (dart 가 있을 때만) */
+  sustainability: {
+    level: '안정' | '보통' | '주의';
+    note: string;
+  } | null;
+}
+
+/**
+ * 배당성향으로 지속가능성을 판정한다.
+ * 100%를 넘으면 그 해 번 돈보다 많이 배당했다는 뜻이라 삭감 위험이 크다.
+ */
+function judgeSustainability(d: DartDividend | null): DividendStock['sustainability'] {
+  if (!d || d.payoutRatio === null) return null;
+  const r = d.payoutRatio;
+  const prev = d.prevPayoutRatio;
+  const trend =
+    prev !== null && Math.abs(r - prev) >= 5
+      ? ` 직전 사업연도 ${prev}%에서 ${r > prev ? '상승' : '하락'}했습니다.`
+      : '';
+
+  if (r > 90) {
+    return {
+      level: '주의',
+      note: `순이익의 ${r}%를 배당에 썼습니다. 이익을 거의 다(또는 넘겨) 배당하는 상태라 실적이 나빠지면 배당이 줄어들 수 있습니다.${trend}`,
+    };
+  }
+  if (r > 50) {
+    return {
+      level: '보통',
+      note: `순이익의 ${r}%를 배당했습니다. 배당 여력은 있으나 여유가 넉넉하진 않습니다.${trend}`,
+    };
+  }
+  return {
+    level: '안정',
+    note: `순이익의 ${r}%만 배당했습니다. 이익 대비 배당 부담이 낮아 지속·증액 여력이 있습니다.${trend}`,
+  };
 }
 
 const DAY_MS = 86_400_000;
@@ -171,6 +210,7 @@ function consecutiveYears(divs: YahooDividend[]): number {
 export function analyzeDividendStock(
   name: string,
   quote: YahooQuote,
+  dart: DartDividend | null = null,
   now: Date = new Date(),
 ): DividendStock | null {
   const { dividends: divs, bars, price } = quote;
@@ -235,6 +275,8 @@ export function analyzeDividendStock(
     nextExDateEst,
     buyByEst,
     estConfidence: confidence,
+    dart,
+    sustainability: judgeSustainability(dart),
     plan: { entry, stop, target, stopPct, targetPct, atr },
     scenario: {
       // 최소: 주가가 그대로여도 받는 배당 (TTM 기준)

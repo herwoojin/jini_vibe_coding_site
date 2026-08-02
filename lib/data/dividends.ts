@@ -1,4 +1,5 @@
 import { fetchYahoo } from './yahoo';
+import { fetchLatestDartDividend } from './dart';
 import { analyzeDividendStock, type DividendStock } from '../engine/dividend';
 
 /**
@@ -47,7 +48,14 @@ export async function fetchDividendUniverse(): Promise<DividendUniverse | null> 
 
   for (const { symbol, name } of UNIVERSE) {
     const quote = await fetchYahoo(symbol, '3y');
-    results.push(quote ? analyzeDividendStock(name, quote) : null);
+    if (!quote) {
+      results.push(null);
+      await sleep(REQUEST_GAP_MS);
+      continue;
+    }
+    // 공시(DART) 배당성향 — 실패해도 종목은 유지한다 (Yahoo 실측만으로도 유효).
+    const dart = await fetchLatestDartDividend(symbol);
+    results.push(analyzeDividendStock(name, quote, dart));
     await sleep(REQUEST_GAP_MS);
   }
 

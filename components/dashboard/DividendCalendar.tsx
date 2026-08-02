@@ -4,6 +4,17 @@ import type { DividendStock } from '@/lib/engine/dividend';
 const won = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const pct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
 
+const SUSTAIN_BG: Record<string, string> = {
+  안정: 'var(--accent-green-dim)',
+  보통: 'rgba(255,255,255,0.03)',
+  주의: 'var(--accent-red-dim)',
+};
+const SUSTAIN_FG: Record<string, string> = {
+  안정: 'var(--positive)',
+  보통: 'var(--text-secondary)',
+  주의: 'var(--negative)',
+};
+
 /** 추정값임을 한눈에 알리는 배지 — 실측과 절대 섞이지 않게 한다. */
 function EstBadge({ confidence }: { confidence: DividendStock['estConfidence'] }) {
   return (
@@ -146,6 +157,30 @@ function StockRow({ s }: { s: DividendStock }) {
         </div>
       </div>
 
+      {/* 공시(DART) 기반 배당 지속가능성 */}
+      {s.sustainability && s.dart && (
+        <div
+          className="flex flex-wrap items-start gap-2 text-[11px] py-1.5 px-2 rounded mb-2"
+          style={{ background: SUSTAIN_BG[s.sustainability.level] }}
+        >
+          <span
+            className="text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
+            style={{ color: SUSTAIN_FG[s.sustainability.level] }}
+            title="DART 전자공시 사업보고서의 배당성향(순이익 중 배당 비율)에 근거한 판정입니다"
+          >
+            공시 · 지속성 {s.sustainability.level}
+          </span>
+          <span className="text-[var(--text-secondary)] leading-relaxed flex-1 min-w-[200px]">
+            {s.sustainability.note}
+            <span className="text-[var(--text-tertiary)]">
+              {' '}
+              ({s.dart.year} 사업보고서
+              {s.dart.dividendPerShare !== null && ` · 주당 ${won(s.dart.dividendPerShare)}원`})
+            </span>
+          </span>
+        </div>
+      )}
+
       {/* 추정 일정 */}
       <div className="flex flex-wrap items-center gap-2 text-[11px] py-1.5 px-2 rounded bg-[rgba(255,255,255,0.02)] mb-2">
         <EstBadge confidence={s.estConfidence} />
@@ -252,7 +287,7 @@ export default function DividendCalendar({ data }: { data: CachedDividends | nul
               아닙니다.
             </p>
             <p>
-              ※ 출처: Yahoo Finance(종가·배당 이력). 배당은 기업 실적에 따라 줄거나 중단될 수 있으며,
+              ※ 출처: Yahoo Finance(종가·배당 이력) · DART 전자공시(배당성향·주당 배당금). 배당은 기업 실적에 따라 줄거나 중단될 수 있으며,
               배당락일에는 통상 배당금만큼 주가가 하락합니다. 본 내용은 투자 참고 정보이며 투자
               권유가 아닙니다.
             </p>
