@@ -45,13 +45,24 @@ function toDate(epochSec: number): string {
  * 시세 + 배당 이력을 한 번에 받는다.
  * @param range 예: '2y' (배당 주기 판별에 최소 2년 권장)
  */
-export async function fetchYahoo(symbol: string, range = '2y'): Promise<YahooQuote | null> {
+export async function fetchYahoo(
+  symbol: string,
+  range = '2y',
+  opts: { noStore?: boolean } = {},
+): Promise<YahooQuote | null> {
   const url = `${BASE}/${encodeURIComponent(symbol)}?range=${range}&interval=1d&events=div`;
 
   try {
     // 헤더를 붙이지 않는다. 브라우저 User-Agent 를 보내면 Yahoo 가 봇으로 보고
     // 429 로 차단하지만, 기본 런타임 UA 는 통과한다 (실측 확인).
-    const res = await fetch(url, { next: { revalidate: ONE_DAY } });
+    //
+    // ⚠️ noStore: 하루 1회 갱신 경로에서는 fetch 캐시를 반드시 꺼야 한다.
+    // 저장소(하루 단위)와 fetch(24시간)가 이중으로 캐시되면, 갱신 시각이 조금만
+    // 어긋나도 "새로 받은" 데이터가 실은 어제 응답이라 날짜가 멈춘 것처럼 보인다.
+    const res = await fetch(
+      url,
+      opts.noStore ? { cache: 'no-store' } : { next: { revalidate: ONE_DAY } },
+    );
     if (!res.ok) throw new Error(`Yahoo HTTP ${res.status}`);
 
     const json = await res.json();

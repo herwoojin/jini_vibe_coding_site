@@ -64,6 +64,13 @@ export const NOTICES = {
       `표시된 내용은 ${when} 기준이며 지금 시장 상황과 다를 수 있습니다.`,
     ),
 
+  dataOlderThanExpected: (asOf: string, days: number) =>
+    notice(
+      'warn',
+      `종가 데이터가 ${days}일 전(${asOf}) 기준입니다`,
+      '데이터 제공처(Yahoo Finance)가 아직 최신 종가를 반영하지 않았습니다. 갱신은 매일 자동으로 시도하며, 표시된 가격은 그 시점 기준이므로 현재가와 다를 수 있습니다.',
+    ),
+
   cached: (minutes: number) =>
     notice(
       'info',

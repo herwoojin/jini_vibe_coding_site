@@ -39,19 +39,49 @@ export default function SectorScanPanel() {
   >({ kind: 'idle' });
   const [analyzing, setAnalyzing] = useState<{ symbol: string; name: string } | null>(null);
 
+  /**
+   * 스캔은 서버에서 백그라운드로 돌기 때문에(50초 안팎) 폴링해서 받아간다.
+   * 요청 안에서 기다리면 배포 환경 함수 제한(무료 10초)에 걸려 항상 실패한다.
+   */
   async function run() {
     setState({ kind: 'loading' });
-    try {
-      const res = await fetch('/api/sector-scan');
-      const json = await res.json();
-      if (!res.ok) {
-        setState({ kind: 'error', message: json.error ?? '스캔에 실패했습니다.', notices: json.notices });
-        return;
+
+    const deadline = Date.now() + 150_000; // 최대 2분 30초
+    let attempt = 0;
+
+    while (Date.now() < deadline) {
+      try {
+        const res = await fetch('/api/sector-scan', { cache: 'no-store' });
+        const json = await res.json();
+
+        if (!res.ok) {
+          setState({ kind: 'error', message: json.error ?? '스캔에 실패했습니다.', notices: json.notices });
+          return;
+        }
+        // 생성이 끝났으면 결과를 보여준다.
+        if (!json.pending && json.scan) {
+          setState({ kind: 'done', scan: json.scan, cached: json.cached, stale: json.stale });
+          return;
+        }
+      } catch {
+        // 네트워크 순간 오류는 다음 폴링에서 회복한다.
       }
-      setState({ kind: 'done', scan: json.scan, cached: json.cached, stale: json.stale });
-    } catch (err) {
-      setState({ kind: 'error', message: err instanceof Error ? err.message : '스캔 실패' });
+      attempt++;
+      await new Promise(r => setTimeout(r, attempt <= 2 ? 3000 : 6000));
     }
+
+    setState({
+      kind: 'error',
+      message: '스캔이 예상보다 오래 걸립니다. 잠시 후 다시 시도해 주세요.',
+      notices: [
+        {
+          level: 'warn',
+          title: '스캔이 아직 진행 중일 수 있습니다',
+          detail:
+            '검색·분석에 1분 이상 걸립니다. 백그라운드에서 계속 진행되므로, 잠시 후 다시 스캔을 누르면 완료된 결과가 바로 나올 수 있습니다.',
+        },
+      ],
+    });
   }
 
   /** 6자리 코드가 있는 종목만 개별 분석으로 연결한다 (없으면 버튼 비활성) */
@@ -93,7 +123,7 @@ export default function SectorScanPanel() {
         <div className="py-8 text-center">
           <div className="text-sm animate-pulse">⏳ 오늘 장의 주도 섹터를 검색·분석 중…</div>
           <div className="text-[11px] text-[var(--text-tertiary)] mt-2">
-            지수·거래대금·수급·촉매를 조사합니다 (최대 2분)
+            지수·거래대금·수급·촉매를 조사합니다. 완료될 때까지 자동으로 기다립니다 (최대 2분)
           </div>
         </div>
       )}

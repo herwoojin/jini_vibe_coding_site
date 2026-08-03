@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { CachedDividends } from '@/lib/data/dividend-cache';
 import type { DividendStock } from '@/lib/engine/dividend';
 import StockAnalysisModal from './StockAnalysisModal';
+import DataNotices from './DataNotices';
 
 const won = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const pct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
@@ -255,7 +256,7 @@ export default function DividendCalendar({ data }: { data: CachedDividends | nul
               ● 실데이터
             </span>
             <span className="ml-auto text-xs text-[var(--text-tertiary)] font-mono">
-              종가 {data.asOf} 기준
+              종가 {data.asOf} 기준 · {data.generatedFor} 갱신
             </span>
           </>
         )}
@@ -267,11 +268,7 @@ export default function DividendCalendar({ data }: { data: CachedDividends | nul
         </p>
       ) : (
         <>
-          {data.stale && (
-            <p className="text-xs mb-2 px-2 py-1.5 rounded bg-[var(--accent-yellow-dim)] text-[var(--accent-yellow)]">
-              ⚠️ 오늘자 갱신이 아직 없어 {data.generatedFor} 데이터를 보여드립니다.
-            </p>
-          )}
+          <DataNotices notices={data.notices} />
 
           <p className="text-[11px] text-[var(--text-tertiary)] mb-3 leading-relaxed">
             종가·배당금·직전 배당락일은 <strong className="text-[var(--positive)]">실측</strong>입니다.

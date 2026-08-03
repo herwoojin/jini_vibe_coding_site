@@ -47,7 +47,8 @@ export async function fetchDividendUniverse(): Promise<DividendUniverse | null> 
   const results: (DividendStock | null)[] = [];
 
   for (const { symbol, name } of UNIVERSE) {
-    const quote = await fetchYahoo(symbol, '3y');
+    // 하루 1회만 도는 경로이므로 fetch 캐시를 꺼서 항상 최신 종가를 받는다.
+    const quote = await fetchYahoo(symbol, '3y', { noStore: true });
     if (!quote) {
       results.push(null);
       await sleep(REQUEST_GAP_MS);
