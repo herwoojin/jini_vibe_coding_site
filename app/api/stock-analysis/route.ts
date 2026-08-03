@@ -1,5 +1,6 @@
 import { analyzeStock } from '@/lib/ai/stock-research';
 import { isKoreanCode, resolveKoreanSymbol, RateLimitedError } from '@/lib/data/symbol-resolve';
+import { NOTICES } from '@/lib/ai/notices';
 
 /**
  * 개별 종목 매수/매도 타이밍 분석 (사용자가 버튼을 눌렀을 때만 실행).
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
             error:
               `종목코드 ${raw} 이(가) 실제로 존재하지 않아 분석을 중단했습니다. ` +
               `AI 가 검색에서 잘못 읽은 코드일 수 있습니다 — 엉뚱한 회사를 분석하지 않기 위해 막았습니다.`,
+            notices: [NOTICES.tickerUnverified([name])],
           },
           { status: 404 },
         );
@@ -63,13 +65,16 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     if (err instanceof RateLimitedError) {
-      return Response.json({ error: err.message }, { status: 429 });
+      return Response.json({ error: err.message, notices: [NOTICES.rateLimited()] }, { status: 429 });
     }
     const message = err instanceof Error ? err.message : '분석에 실패했습니다.';
     console.error('[stock-analysis]', err);
     const isAbort = err instanceof Error && err.name === 'AbortError';
     return Response.json(
-      { error: isAbort ? '분석 시간이 초과되었습니다. 다시 시도해 주세요.' : message },
+      {
+        error: isAbort ? '분석 시간이 초과되었습니다. 다시 시도해 주세요.' : message,
+        notices: [isAbort ? NOTICES.timeout() : NOTICES.analysisFailed(message)],
+      },
       { status: isAbort ? 504 : 500 },
     );
   }

@@ -5,6 +5,7 @@
 //   2단계 검색 결과만 보고 JSON 구조화 → 없는 사실을 지어낼 수 없다
 // 긴 프롬프트로 한 번에 시키면 모델이 검색을 건너뛰고 지어낸다(실측 확인).
 import { generateGroundedContent, extractJsonFlexible } from './grounded';
+import { NOTICES, type DataNotice } from './notices';
 
 const MODEL = 'gemini-2.5-flash';
 
@@ -62,6 +63,12 @@ export interface SectorScan {
   /** 검색 실패 — UI 에 경고를 띄우고 수치를 신뢰하지 않는다 */
   ungrounded: boolean;
   scannedAt: string;
+  /** 값이 비거나 낮춰진 지점을 사용자에게 알린다 */
+  notices: DataNotice[];
+  /** 조사 기준일 (개장 전이면 직전 거래일) */
+  targetDate: string;
+  /** 장중 실시간 데이터인가 */
+  isLive: boolean;
 }
 
 const RESEARCH_SYSTEM = `당신은 한국 증시 리서치 어시스턴트입니다.
@@ -206,8 +213,10 @@ function toNumber(v: unknown): number | null {
   return null;
 }
 
-/** 리서치에 없는 값이 새어 나오지 않도록 정합성을 강제한다. */
+/** 리서치에 없는 값이 새어 나오지 않도록 정합성을 강제하고, 낮춘 이유를 알림으로 남긴다. */
 function sanitize(scan: SectorScan): SectorScan {
+  const notices: DataNotice[] = [];
+  let lowConfidence = 0;
   const watch_list = (scan.watch_list ?? []).slice(0, 8).map(w => {
     const item = {
       ...w,
@@ -218,7 +227,10 @@ function sanitize(scan: SectorScan): SectorScan {
       confidence: toNumber(w.confidence) ?? 0,
     };
     // 신뢰도 미달이면 매매 권고를 관망으로 낮춘다.
-    if (item.confidence <= 0.65 && item.action !== 'watch') item.action = 'watch';
+    if (item.confidence <= 0.65 && item.action !== 'watch') {
+      item.action = 'watch';
+      lowConfidence++;
+    }
     // 가격 정합성: 목표가가 진입가보다 낮으면 신뢰할 수 없다.
     if (
       item.action === 'buy' &&
@@ -241,8 +253,29 @@ function sanitize(scan: SectorScan): SectorScan {
     return item;
   });
 
+  // 강등된 것뿐 아니라 '처음부터 가격이 없는' 후보도 알린다.
+  // 모델이 곧바로 watch 로 주면 강등 카운트에 안 잡히지만, 사용자 입장에선 똑같이
+  // "가격이 왜 비었지?" 가 궁금하기 때문이다.
+  const missingPrice = watch_list.filter(w => w.entry_price === null).length;
+
+  if (scan.ungrounded) notices.push(NOTICES.ungrounded());
+  if (missingPrice > 0) notices.push(NOTICES.priceUnavailable(missingPrice));
+  if (lowConfidence > 0) notices.push(NOTICES.confidenceDowngraded(lowConfidence));
+
+  // 종목코드가 없어 개별 분석을 걸 수 없는 종목을 알린다.
+  const noTicker = [
+    ...(scan.leading_sectors ?? []).flatMap(sec => sec.leaders ?? []),
+    ...(scan.watch_list ?? []),
+  ]
+    .filter(x => !/^\d{6}$/.test(x.ticker ?? ''))
+    .map(x => x.name);
+  if (noTicker.length > 0) notices.push(NOTICES.tickerUnverified([...new Set(noTicker)]));
+
+  if (!scan.isLive && scan.targetDate) notices.push(NOTICES.preMarket(scan.targetDate));
+
   return {
     ...scan,
+    notices,
     market_summary: {
       ...scan.market_summary,
       index_value: toNumber(scan.market_summary?.index_value),
@@ -287,6 +320,9 @@ export async function scanLeadingSectors(signal?: AbortSignal): Promise<SectorSc
   return sanitize({
     ...parsed,
     market: 'KR',
+    targetDate: target,
+    isLive,
+    notices: [],
     sources: research.sources,
     queries: research.queries,
     ungrounded: !grounded,

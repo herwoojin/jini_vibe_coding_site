@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import type { SectorScan, SectorLeader } from '@/lib/ai/sector-scan';
 import StockAnalysisModal from './StockAnalysisModal';
+import DataNotices from './DataNotices';
+import type { DataNotice } from '@/lib/ai/notices';
 
 const SENTIMENT: Record<string, { label: string; color: string }> = {
   risk_on: { label: '🔥 위험선호', color: 'var(--positive)' },
@@ -32,7 +34,7 @@ export default function SectorScanPanel() {
   const [state, setState] = useState<
     | { kind: 'idle' }
     | { kind: 'loading' }
-    | { kind: 'error'; message: string }
+    | { kind: 'error'; message: string; notices?: DataNotice[] }
     | { kind: 'done'; scan: SectorScan; cached: boolean; stale?: boolean }
   >({ kind: 'idle' });
   const [analyzing, setAnalyzing] = useState<{ symbol: string; name: string } | null>(null);
@@ -42,7 +44,10 @@ export default function SectorScanPanel() {
     try {
       const res = await fetch('/api/sector-scan');
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? '스캔에 실패했습니다.');
+      if (!res.ok) {
+        setState({ kind: 'error', message: json.error ?? '스캔에 실패했습니다.', notices: json.notices });
+        return;
+      }
       setState({ kind: 'done', scan: json.scan, cached: json.cached, stale: json.stale });
     } catch (err) {
       setState({ kind: 'error', message: err instanceof Error ? err.message : '스캔 실패' });
@@ -94,9 +99,12 @@ export default function SectorScanPanel() {
       )}
 
       {state.kind === 'error' && (
-        <p className="py-6 text-sm text-center" style={{ color: 'var(--negative)' }}>
-          ⚠️ {state.message}
-        </p>
+        <div className="py-4">
+          <DataNotices notices={state.notices} />
+          <p className="text-sm text-center" style={{ color: 'var(--negative)' }}>
+            ⚠️ {state.message}
+          </p>
+        </div>
       )}
 
       {state.kind === 'done' && (
@@ -140,16 +148,13 @@ function ScanResult({
 
   return (
     <>
-      {scan.ungrounded && (
-        <div className="mb-3 p-2 rounded text-xs" style={{ background: 'var(--accent-red-dim)', color: 'var(--negative)' }}>
-          ⚠️ 실시간 검색에 실패했습니다. 수치를 신뢰하지 마십시오.
-        </div>
-      )}
-      {stale && (
-        <div className="mb-3 p-2 rounded text-xs" style={{ background: 'var(--accent-yellow-dim)', color: 'var(--accent-yellow)' }}>
-          ⚠️ 이번 스캔에 실패해 직전 결과를 보여드립니다.
-        </div>
-      )}
+      {/* 데이터 신뢰도 알림 */}
+      <DataNotices
+        notices={[
+          ...(stale ? [{ level: 'warn' as const, title: '이번 스캔에 실패해 직전 결과를 보여드립니다', detail: `표시된 내용은 ${scan.as_of} 기준이며 지금 시장 상황과 다를 수 있습니다.` }] : []),
+          ...(scan.notices ?? []),
+        ]}
+      />
 
       {/* 시장 요약 */}
       <div className="rounded-lg p-3 mb-3 bg-[rgba(255,255,255,0.03)]">

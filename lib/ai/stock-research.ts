@@ -7,6 +7,7 @@
 import { generateGroundedContent, extractJsonFlexible } from './grounded';
 import { fetchYahoo } from '../data/yahoo';
 import { atr14 } from '../engine/dividend';
+import { NOTICES, type DataNotice } from './notices';
 
 const MODEL = 'gemini-2.5-flash';
 
@@ -64,6 +65,10 @@ export interface StockAnalysis {
   /** 검색 근거 없이 생성됐는가 — true 면 UI 에 경고를 띄운다 */
   ungrounded: boolean;
   analyzedAt: string;
+  /** 값이 비거나 낮춰진 지점을 사용자에게 알린다 */
+  notices: DataNotice[];
+  /** 분석에 걸린 시간(초) */
+  elapsedSec: number;
 }
 
 /**
@@ -174,7 +179,11 @@ ${grounded ? research : '⚠️ 검색에 실패했습니다. 뉴스·공시·�
 }
 
 /** 가격 필드가 상식에 맞는지 검사한다. 어긋나면 신호를 hold 로 낮춘다. */
-function sanitize(signal: StockSignal, price: number): { signal: StockSignal; warning?: string } {
+function sanitize(
+  signal: StockSignal,
+  price: number,
+): { signal: StockSignal; warning?: string; notices: DataNotice[] } {
+  const notices: DataNotice[] = [];
   const s = { ...signal };
 
   if (s.signal === 'buy') {
@@ -185,19 +194,32 @@ function sanitize(signal: StockSignal, price: number): { signal: StockSignal; wa
       (s.stop_loss !== null && s.stop_loss >= s.entry_price) ||
       Math.abs(s.entry_price - price) / price > 0.15; // 현재가와 15% 넘게 벌어지면 비정상
     if (bad) {
+      notices.push(NOTICES.priceInconsistent());
       return {
         signal: { ...s, signal: 'hold', entry_price: null, target_price: null, stop_loss: null },
         warning: 'AI 가 제시한 가격이 서로 모순되어 관망으로 조정했습니다.',
+        notices,
       };
     }
   }
   if (s.confidence <= 0.65 && s.signal !== 'hold') {
+    notices.push(NOTICES.confidenceDowngraded(1));
     return {
       signal: { ...s, signal: 'hold' },
       warning: '신뢰도가 0.65 이하라 관망으로 조정했습니다.',
+      notices,
     };
   }
-  return { signal: s };
+  return { signal: s, notices };
+}
+
+/** 검색 실패·지연 등 신뢰도에 영향을 주는 상황을 알림으로 모은다. */
+function buildNotices(base: DataNotice[], grounded: boolean, elapsedSec: number): DataNotice[] {
+  const out = [...base];
+  if (!grounded) out.unshift(NOTICES.ungrounded());
+  // 배포 환경(무료 티어 10초)에서 실패할 수 있음을 미리 알린다.
+  if (elapsedSec >= 10) out.push(NOTICES.slowOperation(elapsedSec));
+  return out;
 }
 
 export async function analyzeStock(
@@ -205,6 +227,7 @@ export async function analyzeStock(
   name: string,
   signal?: AbortSignal,
 ): Promise<{ analysis: StockAnalysis; warning?: string }> {
+  const startedAt = Date.now();
   // 1) 시세는 실측으로 확정한다 (AI 에게 맡기지 않는다)
   const y = await fetchYahoo(symbol, '1y');
   if (!y) throw new Error(`${name} 시세를 가져오지 못했습니다.`);
@@ -253,7 +276,7 @@ export async function analyzeStock(
     throw new Error('Gemini 응답에서 JSON을 추출하지 못했습니다.');
   }
 
-  const { signal: safe, warning } = sanitize(parsed, quote.price);
+  const { signal: safe, warning, notices } = sanitize(parsed, quote.price);
 
   // 검색이 실패했다면 뉴스·공시류 항목은 신뢰할 수 없으므로 강제로 덮어쓴다.
   if (!grounded) {
@@ -267,6 +290,8 @@ export async function analyzeStock(
     safe.leading_sector_name = '';
   }
 
+  const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
+
   return {
     analysis: {
       quote,
@@ -276,6 +301,8 @@ export async function analyzeStock(
       queries: research.queries,
       ungrounded: !grounded,
       analyzedAt: new Date().toISOString(),
+      notices: buildNotices(notices, grounded, elapsedSec),
+      elapsedSec,
     },
     warning:
       warning ??

@@ -1,5 +1,6 @@
 import { scanLeadingSectors, type SectorScan } from '@/lib/ai/sector-scan';
 import { storeGet, storeSet } from '@/lib/ai/store';
+import { NOTICES } from '@/lib/ai/notices';
 
 /**
  * 오늘의 주도주 섹터 스캔.
@@ -40,7 +41,17 @@ export async function GET() {
 
     const key = cacheKey();
     const cached = await storeGet<SectorScan>(key);
-    if (cached) return Response.json({ scan: cached, cached: true });
+    if (cached) {
+      // 캐시된 결과임을 알린다 (지금 시장과 다를 수 있다).
+      const inSession = (() => {
+        const { minutes } = kstParts();
+        return minutes >= 9 * 60 && minutes <= 15 * 60 + 30;
+      })();
+      return Response.json({
+        scan: { ...cached, notices: [...(cached.notices ?? []), NOTICES.cached(inSession ? 5 : 30)] },
+        cached: true,
+      });
+    }
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 110_000);
@@ -71,6 +82,11 @@ export async function GET() {
           : err instanceof Error
             ? err.message
             : '스캔에 실패했습니다.',
+        notices: [
+          isAbort
+            ? NOTICES.timeout()
+            : NOTICES.analysisFailed(err instanceof Error ? err.message : '알 수 없는 오류'),
+        ],
       },
       { status: isAbort ? 504 : 500 },
     );

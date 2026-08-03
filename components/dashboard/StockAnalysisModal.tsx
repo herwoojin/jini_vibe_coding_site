@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import type { StockAnalysis } from '@/lib/ai/stock-research';
+import type { DataNotice } from '@/lib/ai/notices';
+import DataNotices from './DataNotices';
 
 /** 한국 증시 관례: 상승·매수 = 빨강, 하락·매도 = 파랑 */
 const SIGNAL_STYLE: Record<string, { color: string; label: string; dot: string }> = {
@@ -30,7 +32,7 @@ export default function StockAnalysisModal({
   onClose: () => void;
 }) {
   const [state, setState] = useState<
-    { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'done'; data: StockAnalysis; warning?: string }
+    { kind: 'loading' } | { kind: 'error'; message: string; notices?: DataNotice[] } | { kind: 'done'; data: StockAnalysis; warning?: string }
   >({ kind: 'loading' });
 
   useEffect(() => {
@@ -44,7 +46,10 @@ export default function StockAnalysisModal({
           signal: controller.signal,
         });
         const json = await res.json();
-        if (!res.ok) throw new Error(json.error ?? '분석에 실패했습니다.');
+        if (!res.ok) {
+          setState({ kind: 'error', message: json.error ?? '분석에 실패했습니다.', notices: json.notices });
+          return;
+        }
         setState({ kind: 'done', data: json.analysis, warning: json.warning });
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return;
@@ -110,8 +115,9 @@ export default function StockAnalysisModal({
           )}
 
           {state.kind === 'error' && (
-            <div className="py-8 text-center">
-              <p className="text-sm" style={{ color: 'var(--negative)' }}>
+            <div className="py-4">
+              <DataNotices notices={state.notices} />
+              <p className="text-sm text-center" style={{ color: 'var(--negative)' }}>
                 ⚠️ {state.message}
               </p>
             </div>
@@ -141,17 +147,8 @@ function Result({
 
   return (
     <>
-      {/* 검색 실패 경고 — 가장 위험한 상태이므로 최상단 */}
-      {data.ungrounded && (
-        <div className="mb-3 p-2 rounded text-xs" style={{ background: 'var(--accent-red-dim)', color: 'var(--negative)' }}>
-          ⚠️ 실시간 검색 근거를 확보하지 못했습니다. 뉴스·공시 항목은 비워졌으며 판단 신뢰도가 낮습니다.
-        </div>
-      )}
-      {warning && (
-        <div className="mb-3 p-2 rounded text-xs" style={{ background: 'var(--accent-yellow-dim)', color: 'var(--accent-yellow)' }}>
-          ⚠️ {warning}
-        </div>
-      )}
+      {/* 데이터 신뢰도 알림 — 값이 비거나 낮춰진 이유를 그때마다 알린다 */}
+      <DataNotices notices={data.notices} />
 
       {/* 신호 헤더 */}
       <div className="flex flex-wrap items-center gap-2 mb-2">
