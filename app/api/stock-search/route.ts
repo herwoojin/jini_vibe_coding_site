@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   try {
     // 아직 목록이 준비되지 않았으면 즉시 알리고 백그라운드로 받아둔다.
     // (DART 다운로드가 8초 안팎이라 사용자를 기다리게 두면 멈춘 것처럼 보인다)
-    if (!isReady()) {
+    if (!(await isReady())) {
       const job = warmListedCompanies();
       after(() => job);
       return Response.json({ matches: [], preparing: true });

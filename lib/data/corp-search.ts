@@ -23,9 +23,25 @@ let memoryCache: CorpEntry[] | null = null;
 /** 목록을 받아오는 중인 작업 (중복 다운로드 방지) */
 let warming: Promise<CorpEntry[]> | null = null;
 
-/** 이미 쓸 수 있는 상태인가 — 네트워크를 타지 않고 즉시 판단한다. */
-export function isReady(): boolean {
-  return memoryCache !== null;
+/**
+ * 이미 쓸 수 있는 상태인가.
+ *
+ * ⚠️ 메모리만 보면 안 된다. 서버리스는 요청마다 인스턴스가 달라 memoryCache 가
+ * 거의 항상 비어 있어서, 저장소에 목록이 있어도 영영 "준비 중"에 머문다(실측).
+ * 저장소까지 확인하고, 있으면 메모리로 끌어올린다.
+ */
+export async function isReady(): Promise<boolean> {
+  if (memoryCache !== null) return true;
+  try {
+    const cached = await storeGet<CorpEntry[]>(STORE_KEY);
+    if (cached && cached.length > 0) {
+      memoryCache = cached;
+      return true;
+    }
+  } catch {
+    /* 저장소를 못 읽으면 준비 안 된 것으로 본다 */
+  }
+  return false;
 }
 
 /**
