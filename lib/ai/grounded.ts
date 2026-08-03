@@ -66,6 +66,8 @@ export async function generateGroundedContent(
 
       if (!res.ok) {
         lastError = `HTTP ${res.status}: ${(await res.text().catch(() => '')).slice(0, 160)}`;
+        // 조용히 폴백하면 "왜 검색이 안 됐는지" 알 수 없다. 반드시 남긴다.
+        console.warn(`[grounded] ${variant.label} 실패 → 다음 단계로: ${lastError}`);
         continue;
       }
 

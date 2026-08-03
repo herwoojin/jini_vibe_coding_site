@@ -7,6 +7,7 @@ import { after } from 'next/server';
 import AIAnalysisPanel from '@/components/dashboard/AIAnalysisPanel';
 import { getDashboardData } from '@/lib/data/dashboard';
 import DividendCalendar from '@/components/dashboard/DividendCalendar';
+import SectorScanPanel from '@/components/dashboard/SectorScanPanel';
 import { readAnalysis, needsGeneration, generateIfMissing } from '@/lib/ai/analysis';
 import { currentSlot } from '@/lib/ai/slots';
 import {
@@ -76,6 +77,9 @@ export default async function Dashboard() {
         <MarketTabs signals={data.signals} origin={data.signalsOrigin} />
         <MacroCards cards={data.macroCards} />
       </div>
+
+      {/* 오늘의 주도주 섹터 스캔 (사용자 요청 시 실행) */}
+      <SectorScanPanel />
 
       {/* 배당주 캘린더 (하루 1회 갱신) */}
       <DividendCalendar data={dividends} />

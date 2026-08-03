@@ -1,4 +1,5 @@
 import { analyzeStock } from '@/lib/ai/stock-research';
+import { isKoreanCode, resolveKoreanSymbol, RateLimitedError } from '@/lib/data/symbol-resolve';
 
 /**
  * 개별 종목 매수/매도 타이밍 분석 (사용자가 버튼을 눌렀을 때만 실행).
@@ -22,8 +23,29 @@ export async function POST(request: Request) {
     if (typeof symbol !== 'string' || typeof name !== 'string' || !symbol || !name) {
       return Response.json({ error: '종목명 또는 티커가 필요합니다.' }, { status: 400 });
     }
-    if (!ALLOWED.has(symbol)) {
+    // 배당 유니버스이거나 국내 종목(6자리 코드 / 완성 심볼)만 허용한다.
+    // 임의 문자열을 그대로 외부 API 에 넘기지 않기 위한 방어다.
+    const raw = symbol.replace(/\.(KS|KQ)$/, '');
+    if (!ALLOWED.has(symbol) && !isKoreanCode(raw)) {
       return Response.json({ error: '지원하지 않는 종목입니다.' }, { status: 400 });
+    }
+
+    // 섹터 스캔에서 넘어온 종목은 코스피(.KS)/코스닥(.KQ) 중 어디인지 모른다.
+    // 실제로 존재하는 쪽을 찾아 쓴다 (없으면 분석하지 않는다).
+    let resolved = symbol;
+    if (!ALLOWED.has(symbol)) {
+      const found = await resolveKoreanSymbol(raw);
+      if (!found) {
+        return Response.json(
+          {
+            error:
+              `종목코드 ${raw} 이(가) 실제로 존재하지 않아 분석을 중단했습니다. ` +
+              `AI 가 검색에서 잘못 읽은 코드일 수 있습니다 — 엉뚱한 회사를 분석하지 않기 위해 막았습니다.`,
+          },
+          { status: 404 },
+        );
+      }
+      resolved = found;
     }
     if (!process.env.GEMINI_KEY) {
       return Response.json({ error: 'Gemini API 키가 설정되지 않았습니다.' }, { status: 503 });
@@ -34,12 +56,15 @@ export async function POST(request: Request) {
     const timer = setTimeout(() => controller.abort(), 55_000);
 
     try {
-      const { analysis, warning } = await analyzeStock(symbol, name, controller.signal);
+      const { analysis, warning } = await analyzeStock(resolved, name, controller.signal);
       return Response.json({ analysis, warning });
     } finally {
       clearTimeout(timer);
     }
   } catch (err) {
+    if (err instanceof RateLimitedError) {
+      return Response.json({ error: err.message }, { status: 429 });
+    }
     const message = err instanceof Error ? err.message : '분석에 실패했습니다.';
     console.error('[stock-analysis]', err);
     const isAbort = err instanceof Error && err.name === 'AbortError';
