@@ -184,3 +184,49 @@ body {
 .animate-fade-in-delay-3 { animation-delay: 0.3s; opacity: 0; }
 .animate-fade-in-delay-4 { animation-delay: 0.4s; opacity: 0; }
 .animate-fade-in-delay-5 { animation-delay: 0.5s; opacity: 0; }
+
+/* === AI Analysis Loading Skeleton === */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+/* AI 분석 생성 스피너 */
+@keyframes ai-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.ai-spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.06);
+  border-top-color: var(--gradient-start);
+  border-right-color: var(--gradient-end);
+  animation: ai-spin 1.2s linear infinite;
+}
+
+/* 로딩 점 애니메이션 */
+@keyframes dots {
+  0%, 20% { content: ''; }
+  40% { content: '.'; }
+  60% { content: '..'; }
+  80%, 100% { content: '...'; }
+}
+
+.loading-dots::after {
+  content: '';
+  animation: dots 1.5s steps(1) infinite;
+}

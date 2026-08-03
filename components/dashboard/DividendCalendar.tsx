@@ -1,5 +1,9 @@
+'use client';
+
+import { useState } from 'react';
 import type { CachedDividends } from '@/lib/data/dividend-cache';
 import type { DividendStock } from '@/lib/engine/dividend';
+import StockAnalysisModal from './StockAnalysisModal';
 
 const won = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const pct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
@@ -103,7 +107,7 @@ function MonthGrid({ stocks, today }: { stocks: DividendStock[]; today: Date }) 
   );
 }
 
-function StockRow({ s }: { s: DividendStock }) {
+function StockRow({ s, onAnalyze }: { s: DividendStock; onAnalyze: (s: DividendStock) => void }) {
   return (
     <div className="rounded-lg p-3 bg-[rgba(255,255,255,0.02)] border border-[var(--card-border)]">
       <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -119,6 +123,14 @@ function StockRow({ s }: { s: DividendStock }) {
           {s.frequency}배당
         </span>
         <span className="ml-auto text-xs font-mono">{won(s.price)}원</span>
+        <button
+          onClick={() => onAnalyze(s)}
+          className="text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap"
+          style={{ background: 'linear-gradient(135deg,#6c5ce7,#a29bfe)', color: '#fff' }}
+          title="Google 검색으로 뉴스·공시·주도섹터를 조사해 매매 타이밍을 분석합니다"
+        >
+          ✨ 매매 분석
+        </button>
       </div>
 
       {/* 실측 */}
@@ -225,6 +237,7 @@ function StockRow({ s }: { s: DividendStock }) {
 }
 
 export default function DividendCalendar({ data }: { data: CachedDividends | null }) {
+  const [analyzing, setAnalyzing] = useState<DividendStock | null>(null);
   const today = new Date();
   const monthLabel = `${today.getFullYear()}년 ${today.getMonth() + 1}월`;
 
@@ -275,7 +288,7 @@ export default function DividendCalendar({ data }: { data: CachedDividends | nul
           </h3>
           <div className="space-y-2">
             {data.stocks.map(s => (
-              <StockRow key={s.symbol} s={s} />
+              <StockRow key={s.symbol} s={s} onAnalyze={setAnalyzing} />
             ))}
           </div>
 
@@ -293,6 +306,14 @@ export default function DividendCalendar({ data }: { data: CachedDividends | nul
             </p>
           </div>
         </>
+      )}
+
+      {analyzing && (
+        <StockAnalysisModal
+          symbol={analyzing.symbol}
+          name={analyzing.name}
+          onClose={() => setAnalyzing(null)}
+        />
       )}
     </section>
   );
