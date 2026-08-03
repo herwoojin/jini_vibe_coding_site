@@ -20,6 +20,32 @@ export interface CorpEntry {
 }
 
 let memoryCache: CorpEntry[] | null = null;
+/** 목록을 받아오는 중인 작업 (중복 다운로드 방지) */
+let warming: Promise<CorpEntry[]> | null = null;
+
+/** 이미 쓸 수 있는 상태인가 — 네트워크를 타지 않고 즉시 판단한다. */
+export function isReady(): boolean {
+  return memoryCache !== null;
+}
+
+/**
+ * 목록을 미리 받아둔다 (페이지 렌더 직후 호출).
+ * DART 다운로드가 8초 안팎 걸려(실측) 사용자가 타이핑한 뒤에 받으면 너무 느리다.
+ */
+export function warmListedCompanies(): Promise<CorpEntry[]> {
+  if (memoryCache) return Promise.resolve(memoryCache);
+  if (!warming) {
+    warming = getListedCompanies()
+      .catch(err => {
+        console.error('[corp-search] 목록 준비 실패:', err);
+        return [];
+      })
+      .finally(() => {
+        warming = null;
+      }) as Promise<CorpEntry[]>;
+  }
+  return warming;
+}
 
 /** 단일 엔트리 ZIP 을 내장 zlib 으로 푼다 (새 의존성 없이). */
 function unzipSingle(buf: Buffer): string {

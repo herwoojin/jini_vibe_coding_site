@@ -16,6 +16,7 @@ import {
   needsDividendRefresh,
   refreshDividendsIfMissing,
 } from '@/lib/data/dividend-cache';
+import { warmListedCompanies } from '@/lib/data/corp-search';
 import { markets, indicators } from '@/lib/mock/data';
 
 // 요청마다 렌더한다(no-store). ISR 로 캐싱하면 슬롯 경계(05:30/12:00/15:10) 직후
@@ -49,6 +50,9 @@ export default async function Dashboard() {
   if (mustRefreshDiv) {
     after(() => refreshDividendsIfMissing());
   }
+  // 종목 검색용 상장사 목록을 미리 받아둔다 (첫 다운로드가 8초 안팎이라
+  // 사용자가 타이핑한 뒤에 받기 시작하면 멈춘 것처럼 보인다).
+  after(() => warmListedCompanies());
 
   const liveCards = data.macroCards.filter(c => c.origin === 'live');
   const liveSources = [...new Set(liveCards.map(c => c.indicator.source))];

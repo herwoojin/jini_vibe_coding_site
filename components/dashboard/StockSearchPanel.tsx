@@ -17,6 +17,7 @@ export default function StockSearchPanel() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
   const [selected, setSelected] = useState<Match | null>(null);
   const [recent, setRecent] = useState<Match[]>([]);
 
@@ -38,8 +39,17 @@ export default function StockSearchPanel() {
           signal: controller.signal,
         });
         const json = await res.json();
-        setMatches(json.matches ?? []);
         setError(json.error ?? null);
+
+        // 상장사 목록을 아직 받는 중이면(첫 1회, 8초 안팎) 상태를 알리고 재시도한다.
+        if (json.preparing) {
+          setPreparing(true);
+          setMatches([]);
+          setTimeout(() => setQuery(cur => (cur === q ? `${q} ` : cur)), 2500);
+          return;
+        }
+        setPreparing(false);
+        setMatches(json.matches ?? []);
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return;
         setError('검색에 실패했습니다.');
@@ -84,11 +94,18 @@ export default function StockSearchPanel() {
           className="w-full px-3 py-2 rounded-lg text-sm bg-[rgba(255,255,255,0.04)] border border-[var(--card-border)] focus:outline-none focus:border-[var(--positive)]"
         />
 
-        {(matches.length > 0 || searching || error) && (
+        {(matches.length > 0 || searching || preparing || error) && (
           <div className="absolute z-20 left-0 right-0 mt-1 rounded-lg border border-[var(--card-border)] overflow-hidden"
                style={{ background: 'var(--background)' }}>
-            {searching && matches.length === 0 && (
-              <div className="px-3 py-2 text-xs text-[var(--text-tertiary)]">검색 중…</div>
+            {preparing ? (
+              <div className="px-3 py-2 text-xs text-[var(--accent-yellow)]">
+                ⏳ 상장사 목록을 처음 불러오는 중입니다 (약 10초). 준비되면 자동으로 검색됩니다.
+              </div>
+            ) : (
+              searching &&
+              matches.length === 0 && (
+                <div className="px-3 py-2 text-xs text-[var(--text-tertiary)]">검색 중…</div>
+              )
             )}
             {error && (
               <div className="px-3 py-2 text-xs" style={{ color: 'var(--negative)' }}>
@@ -109,7 +126,7 @@ export default function StockSearchPanel() {
         )}
       </div>
 
-      {query.trim().length > 0 && !searching && matches.length === 0 && !error && (
+      {query.trim().length > 0 && !searching && !preparing && matches.length === 0 && !error && (
         <p className="text-xs text-[var(--text-tertiary)] mt-2">
           일치하는 상장사가 없습니다. 정식 회사명(예: &quot;에스케이하이닉스&quot;가 아니라 &quot;SK하이닉스&quot;)이나
           6자리 종목코드로 다시 시도해 보세요.
