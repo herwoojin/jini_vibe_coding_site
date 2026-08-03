@@ -8,6 +8,7 @@ import { generateGroundedContent, extractJsonFlexible } from './grounded';
 import { fetchYahoo } from '../data/yahoo';
 import { atr14 } from '../engine/dividend';
 import { NOTICES, type DataNotice } from './notices';
+import { computeVolumeProfile, describeVolumeProfile, type VolumeProfile } from '../engine/volume-profile';
 
 const MODEL = 'gemini-2.5-flash';
 
@@ -53,6 +54,10 @@ export interface StockQuote {
   ma20: number | null;
   ma60: number | null;
   atr: number;
+  /** 매물대 — 실거래량으로 계산 (AI 추측 아님) */
+  volumeProfile: VolumeProfile | null;
+  /** 매물대 한 줄 요약 */
+  volumeProfileText: string;
 }
 
 export interface StockAnalysis {
@@ -132,6 +137,7 @@ function buildJudgePrompt(q: StockQuote, research: string, grounded: boolean): s
 52주 고가/저가: ${q.week52High.toLocaleString()} / ${q.week52Low.toLocaleString()}
 이동평균선: ${trend || '데이터 부족'}
 ATR(14일 평균 변동폭): ${Math.round(q.atr).toLocaleString()}${unit}
+매물대(실거래량 계산): ${q.volumeProfileText || '데이터 부족'}
 기준일: ${q.asOf}
 
 [검색으로 조사된 리서치 요약 — 이 내용 밖의 사실을 새로 만들지 마십시오]
@@ -151,7 +157,7 @@ ${grounded ? research : '⚠️ 검색에 실패했습니다. 뉴스·공시·�
   "reasoning": "<2~3문장. 뉴스·공시·이평선·수급 통합 근거. 추측 금지>",
   "confidence": <0.0~1.0>,
   "checklist": {
-    "volume_profile": "<지지/저항 가격대 한줄>",
+    "volume_profile": "<위에 주어진 매물대 수치를 그대로 인용해 지지·저항을 한 줄로. 임의 수치 금지>",
     "moving_avg": "<위 이평선 수치 기준 정배열/역배열 한줄>",
     "news": "<최근 뉴스 한줄, 없으면 '특이 뉴스 확인되지 않음'>",
     "disclosure": "<공시 한줄, 없으면 '특이 공시 확인되지 않음'>",
@@ -252,7 +258,14 @@ export async function analyzeStock(
     ma20: ma(closes, 20),
     ma60: ma(closes, 60),
     atr: atr14(y.bars),
+    volumeProfile: null,
+    volumeProfileText: '',
   };
+
+  // 매물대는 검색이 아니라 실거래량 계산으로 확정한다.
+  const vp = computeVolumeProfile(y.bars);
+  quote.volumeProfile = vp;
+  quote.volumeProfileText = vp ? describeVolumeProfile(vp, quote.currency) : '';
 
   // 2) 검색 전용 호출 (짧게 → 실제로 검색이 일어난다)
   const today = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' });
@@ -277,6 +290,11 @@ export async function analyzeStock(
   }
 
   const { signal: safe, warning, notices } = sanitize(parsed, quote.price);
+
+  // 매물대는 우리가 계산한 실측값이 정답이다. AI 가 다르게 썼으면 덮어쓴다.
+  if (quote.volumeProfileText) {
+    safe.checklist = { ...safe.checklist, volume_profile: quote.volumeProfileText };
+  }
 
   // 검색이 실패했다면 뉴스·공시류 항목은 신뢰할 수 없으므로 강제로 덮어쓴다.
   if (!grounded) {

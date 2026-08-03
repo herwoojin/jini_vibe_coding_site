@@ -17,6 +17,8 @@ export interface YahooBar {
   high: number;
   low: number;
   close: number;
+  /** 거래량 — 매물대(거래량 집중 가격대) 계산에 쓴다 */
+  volume: number;
 }
 
 export interface YahooDividend {
@@ -77,7 +79,12 @@ export async function fetchYahoo(
       const [o, h, l, c] = [q.open?.[i], q.high?.[i], q.low?.[i], q.close?.[i]];
       // 휴장일은 null 로 온다 — 값이 없는 날은 버린다 (0 으로 채우지 않는다).
       if ([o, h, l, c].every(v => typeof v === 'number' && Number.isFinite(v))) {
-        bars.push({ ts: toDate(ts[i]), open: o, high: h, low: l, close: c });
+        const v = q.volume?.[i];
+        bars.push({
+          ts: toDate(ts[i]),
+          open: o, high: h, low: l, close: c,
+          volume: typeof v === 'number' && Number.isFinite(v) ? v : 0,
+        });
       }
     }
     if (bars.length === 0) throw new Error('no valid bars');

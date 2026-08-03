@@ -37,25 +37,82 @@ export default function StockAnalysisModal({
 
   useEffect(() => {
     const controller = new AbortController();
+
+    /**
+     * 서버가 백그라운드로 분석하므로(30~60초) 폴링해서 받아간다.
+     * 요청 안에서 기다리면 배포 환경 함수 제한을 넘겨 게이트웨이가 HTML 오류
+     * 페이지를 돌려주고, 그걸 JSON 으로 읽다가 "Unexpected token '<'" 이 난다.
+     */
     (async () => {
-      try {
-        const res = await fetch('/api/stock-analysis', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol, name }),
-          signal: controller.signal,
-        });
-        const json = await res.json();
-        if (!res.ok) {
-          setState({ kind: 'error', message: json.error ?? '분석에 실패했습니다.', notices: json.notices });
-          return;
+      const deadline = Date.now() + 180_000; // 최대 3분
+      let attempt = 0;
+
+      while (Date.now() < deadline && !controller.signal.aborted) {
+        try {
+          const res = await fetch('/api/stock-analysis', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbol, name }),
+            signal: controller.signal,
+            cache: 'no-store',
+          });
+
+          // 게이트웨이가 HTML 오류 페이지를 주는 경우가 있다. 원문 파싱 오류를
+          // 그대로 보여주지 않고 사람이 읽을 수 있는 안내로 바꾼다.
+          const text = await res.text();
+          let json: Record<string, unknown>;
+          try {
+            json = JSON.parse(text);
+          } catch {
+            if (res.status >= 500 || res.status === 504) {
+              // 서버가 아직 처리 중일 수 있으므로 계속 폴링한다.
+              attempt++;
+              await new Promise(r => setTimeout(r, 5000));
+              continue;
+            }
+            throw new Error('서버가 예상치 못한 응답을 보냈습니다. 잠시 후 다시 시도해 주세요.');
+          }
+
+          if (!res.ok) {
+            setState({
+              kind: 'error',
+              message: (json.error as string) ?? '분석에 실패했습니다.',
+              notices: json.notices as DataNotice[] | undefined,
+            });
+            return;
+          }
+          if (!json.pending && json.analysis) {
+            setState({
+              kind: 'done',
+              data: json.analysis as StockAnalysis,
+              warning: json.warning as string | undefined,
+            });
+            return;
+          }
+        } catch (err) {
+          if (err instanceof Error && err.name === 'AbortError') return;
+          // 네트워크 순간 오류는 다음 폴링에서 회복한다.
         }
-        setState({ kind: 'done', data: json.analysis, warning: json.warning });
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        setState({ kind: 'error', message: err instanceof Error ? err.message : '분석 실패' });
+        attempt++;
+        await new Promise(r => setTimeout(r, attempt <= 2 ? 4000 : 7000));
+      }
+
+      if (!controller.signal.aborted) {
+        setState({
+          kind: 'error',
+          message: '분석이 예상보다 오래 걸립니다. 잠시 후 다시 시도해 주세요.',
+          notices: [
+            {
+              level: 'warn',
+              title: '분석이 아직 진행 중일 수 있습니다',
+              detail:
+                '검색·분석에 1분 이상 걸립니다. 백그라운드에서 계속 진행되므로, 잠시 후 다시 열면 완료된 결과가 바로 나올 수 있습니다.',
+            },
+          ],
+        });
       }
     })();
+
     return () => controller.abort();
   }, [symbol, name]);
 
@@ -109,7 +166,8 @@ export default function StockAnalysisModal({
                 ⏳ 시세 조회 + 매수·매도 타이밍 분석 중…
               </div>
               <div className="text-[11px] text-[var(--text-tertiary)] mt-2">
-                Google 검색으로 뉴스·공시·주도섹터를 조사합니다 (최대 60초)
+                Google 검색으로 뉴스·공시·주도섹터를 조사합니다.
+                완료될 때까지 자동으로 기다립니다 (보통 30~60초)
               </div>
             </div>
           )}
@@ -123,9 +181,7 @@ export default function StockAnalysisModal({
             </div>
           )}
 
-          {state.kind === 'done' && (
-            <Result data={state.data} warning={state.warning} money={money} />
-          )}
+          {state.kind === 'done' && <Result data={state.data} money={money} />}
         </div>
       </div>
     </div>
@@ -134,11 +190,9 @@ export default function StockAnalysisModal({
 
 function Result({
   data,
-  warning,
   money,
 }: {
   data: StockAnalysis;
-  warning?: string;
   money: (n: number | null, cur: string) => string;
 }) {
   const { quote: q, signal: s } = data;
