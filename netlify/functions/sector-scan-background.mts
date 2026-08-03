@@ -13,6 +13,16 @@ const sectorScanBackground = async (req: Request): Promise<Response> => {
     if (!key) throw new Error('key 가 필요합니다');
 
     console.log(`[bg:sector-scan] 시작 ${key}`);
+    // 진단용 표식 — 긴 작업 전에 먼저 기록한다.
+    // 이게 보이면 "함수는 실행됐고 Blobs 공유도 된다"가 증명되고,
+    // 안 보이면 함수가 아예 안 돌거나 import 단계에서 죽은 것이다.
+    await storeSet('sector:__debug', {
+      stage: 'started',
+      key,
+      at: new Date().toISOString(),
+      hasGeminiKey: Boolean(process.env.GEMINI_KEY),
+    });
+
     const scan = await scanLeadingSectors();
 
     // 검색 실패(ungrounded) 결과는 캐시하지 않는다 — 빈 화면을 30분 고정시키게 된다.
@@ -27,6 +37,12 @@ const sectorScanBackground = async (req: Request): Promise<Response> => {
     return new Response('ok', { status: 200 });
   } catch (err) {
     console.error(`[bg:sector-scan] 실패 ${key}:`, err);
+    await storeSet('sector:__debug', {
+      stage: 'failed',
+      key,
+      at: new Date().toISOString(),
+      error: err instanceof Error ? err.message : String(err),
+    }).catch(() => {});
     return new Response('error', { status: 500 });
   }
 };
