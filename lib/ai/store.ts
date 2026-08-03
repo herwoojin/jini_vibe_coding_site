@@ -29,16 +29,29 @@ const FILE = process.env.NETLIFY
 const memory = new Map<string, unknown>();
 
 let blobWarned = false;
+let blobOkLogged = false;
 
 async function blobs() {
   try {
     const { getStore } = await import('@netlify/blobs');
-    return getStore(BLOB_STORE);
+    const store = getStore(BLOB_STORE);
+    // ⚠️ 배포에서 Next 라우트와 Background Function 은 별개 프로세스다.
+    // Blobs 를 못 쓰면 결과를 서로 못 보고 화면이 영영 폴링만 한다.
+    // 어느 백엔드를 쓰는지 한 번은 남겨 진단할 수 있게 한다.
+    if (!blobOkLogged) {
+      blobOkLogged = true;
+      console.log('[store] Netlify Blobs 사용');
+    }
+    return store;
   } catch (err) {
     // 원인을 삼키면 배포 환경에서 왜 캐시가 안 되는지 알 수 없다. 한 번만 남긴다.
     if (!blobWarned) {
       blobWarned = true;
-      console.warn('[store] Netlify Blobs 사용 불가 — 파일/메모리로 폴백:', err);
+      console.warn(
+        '[store] Netlify Blobs 사용 불가 — 파일/메모리로 폴백. ' +
+          '배포 환경이라면 Background Function 결과를 화면이 읽지 못한다:',
+        err,
+      );
     }
     return null;
   }

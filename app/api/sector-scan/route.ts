@@ -2,6 +2,7 @@ import { after } from 'next/server';
 import { scanLeadingSectors, type SectorScan } from '@/lib/ai/sector-scan';
 import { storeGet, storeSet } from '@/lib/ai/store';
 import { NOTICES } from '@/lib/ai/notices';
+import { triggerBackground } from '@/lib/ai/background';
 
 /**
  * 오늘의 주도주 섹터 스캔.
@@ -82,9 +83,14 @@ export async function GET() {
       });
     }
 
-    // 아직 없으면 백그라운드로 시작하고 즉시 응답한다 (함수 타임아웃 회피).
-    const job = startScan(key);
-    after(() => job);
+    // 배포 환경에서는 Background Function(15분 상한)으로 넘긴다.
+    // 일반 함수는 무료 티어 10초에서 죽어 50~70초짜리 스캔이 절대 끝나지 않는다.
+    const handed = await triggerBackground('sector-scan-background', { key });
+    if (!handed) {
+      // 로컬 개발 등 — 인라인으로 돌린다.
+      const job = startScan(key);
+      after(() => job);
+    }
 
     // 기다리는 동안 직전 결과라도 보여준다.
     const latest = await storeGet<SectorScan>(LATEST);

@@ -3,6 +3,7 @@ import { analyzeStock, type StockAnalysis } from '@/lib/ai/stock-research';
 import { isKoreanCode, resolveKoreanSymbol, RateLimitedError } from '@/lib/data/symbol-resolve';
 import { storeGet, storeSet } from '@/lib/ai/store';
 import { NOTICES, type DataNotice } from '@/lib/ai/notices';
+import { triggerBackground } from '@/lib/ai/background';
 
 /**
  * 개별 종목 매수/매도 타이밍 분석.
@@ -112,9 +113,17 @@ export async function POST(request: Request) {
       return Response.json({ ...stored, pending: false });
     }
 
-    // 아직 없으면 백그라운드로 시작하고 즉시 응답한다 (게이트웨이 타임아웃 회피).
-    const job = startAnalysis(key, resolved, name);
-    after(() => job);
+    // 배포 환경에서는 Background Function(15분 상한)으로 넘긴다.
+    const handed = await triggerBackground('stock-analysis-background', {
+      key,
+      symbol: resolved,
+      name,
+    });
+    if (!handed) {
+      // 로컬 개발 등 — 인라인으로 돌린다.
+      const job = startAnalysis(key, resolved, name);
+      after(() => job);
+    }
 
     return Response.json({ pending: true });
   } catch (err) {
