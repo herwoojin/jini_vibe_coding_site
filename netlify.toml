@@ -1,14 +1,14 @@
 # Netlify 배포 설정
 #
-# Background Function(파일명 *-background) 은 15분까지 실행된다.
-# 일반 함수는 무료 티어 10초에서 종료되므로, 50~70초 걸리는 AI 스캔·분석은
-# 반드시 백그라운드 함수에서 돌려야 한다.
-
-[build]
-  command = "npm run build"
-  publish = ".next"
+# ⚠️ Next.js 사이트에서는 build.command / build.publish 를 직접 쓰지 않는다.
+# Next.js 어댑터가 서버리스 함수·캐싱·라우팅을 포함한 출력 구조를 자동으로 만들기 때문에,
+# publish 를 ".next" 로 고정하면 배포가 깨진다 (Netlify 공식 문서 확인).
+#
+# 여기서는 Background Function 설정만 둔다.
+# netlify/functions 의 *-background.mts 는 15분까지 실행되므로,
+# 일반 함수 제한(무료 10초)으로는 끝나지 않는 AI 스캔·분석을 이쪽에서 돌린다.
+# (Background Functions 는 Free 플랜에서도 사용 가능 — 공식 문서 확인)
 
 [functions]
-  # netlify/functions 안의 .mts 가 프로젝트 lib/ 코드를 import 하므로 번들에 포함시킨다.
+  # 함수가 프로젝트의 lib/ 코드를 import 하므로 esbuild 로 번들한다.
   node_bundler = "esbuild"
-  included_files = ["lib/**"]
