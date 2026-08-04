@@ -12,6 +12,24 @@ import { storeGet, storeSet } from '../ai/store';
 const CORP_CODE_URL = 'https://opendart.fss.or.kr/api/corpCode.xml';
 const STORE_KEY = 'corp:listed-v1';
 
+/**
+ * 워밍 표식 — 라우트와 백그라운드 함수가 함께 쓴다.
+ *
+ * 화면은 준비될 때까지 2.5초마다 다시 물어본다. 가드가 없으면 그 간격마다
+ * DART 를 새로 두들겨(3.4MB) 목록이 준비되기도 전에 호출만 쌓인다.
+ * 시작 시각을 남겨 TTL 안에는 한 번만 돌게 한다.
+ */
+export const WARM_FLAG = 'corp:warming';
+/** 워밍 실패 기록. 이게 없으면 화면이 원인도 모른 채 영영 "준비 중"에 머문다. */
+export const WARM_ERROR = 'corp:warm-error';
+/** 워밍이 이 시간 안에 끝나지 않으면 죽은 것으로 보고 다시 시도한다. */
+export const WARM_TTL_MS = 90_000;
+
+export interface WarmError {
+  at: number;
+  message: string;
+}
+
 export interface CorpEntry {
   /** 6자리 종목코드 */
   code: string;
