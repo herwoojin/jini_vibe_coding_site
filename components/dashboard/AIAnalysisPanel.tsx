@@ -8,6 +8,7 @@ import type { SectorSnapshot } from '@/lib/data/sectors';
 /* ─── 폴링 설정 ─── */
 const POLL_INTERVAL_MS = 3_000;
 const MAX_POLLS = 20; // 최대 60초
+const TIMEOUT_MESSAGE = '분석 생성에 시간이 너무 오래 걸리고 있습니다. 새로고침하면 다시 시도합니다.';
 
 /* ═══════════════════════════════════════════════════════════════════
    서브 컴포넌트 (기존 유지)
@@ -224,27 +225,21 @@ function ErrorState({ message, onRetry }: { message: string | null; onRetry: () 
    ═══════════════════════════════════════════════════════════════════ */
 
 export default function AIAnalysisPanel({ data: initialData }: { data: SlottedAnalysis | null }) {
-  const [data, setData] = useState(initialData);
-  const [polling, setPolling] = useState(!initialData);
+  /* 폴링으로 받아온 것만 상태로 들고, 화면에 쓸 값은 렌더 중에 파생시킨다.
+     effect 안에서 prop 을 상태로 베끼거나 "폴링 중" 플래그를 따로 두면
+     렌더가 한 번 더 돌고, 같은 사실이 두 곳에 기록돼 어긋날 수 있다. */
+  const [fetched, setFetched] = useState<SlottedAnalysis | null>(null);
   const [pollCount, setPollCount] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
 
-  /* 서버에서 다시 렌더해서 initialData 가 바뀌면 반영 */
-  useEffect(() => {
-    if (initialData) {
-      setData(initialData);
-      setPolling(false);
-    }
-  }, [initialData]);
+  // 서버가 다시 렌더해 initialData 가 생기면 그쪽이 우선한다.
+  const data = initialData ?? fetched;
+  const error = failure ?? (pollCount >= MAX_POLLS ? TIMEOUT_MESSAGE : null);
+  const polling = !data && !error;
 
-  /* 폴링 루프 */
+  /* 폴링 루프 — 결과가 오거나 실패할 때까지 POLL_INTERVAL_MS 간격으로 조회 */
   useEffect(() => {
     if (!polling) return;
-    if (pollCount >= MAX_POLLS) {
-      setError('분석 생성에 시간이 너무 오래 걸리고 있습니다. 새로고침하면 다시 시도합니다.');
-      setPolling(false);
-      return;
-    }
 
     const timer = setTimeout(async () => {
       try {
@@ -252,11 +247,9 @@ export default function AIAnalysisPanel({ data: initialData }: { data: SlottedAn
         const json = await res.json();
 
         if (json.status === 'ready') {
-          setData(json.data);
-          setPolling(false);
+          setFetched(json.data);
         } else if (json.status === 'error') {
-          setError(json.message);
-          setPolling(false);
+          setFailure(json.message);
         } else {
           // 'generating' — 계속 폴링
           setPollCount(c => c + 1);
@@ -271,9 +264,8 @@ export default function AIAnalysisPanel({ data: initialData }: { data: SlottedAn
   }, [polling, pollCount]);
 
   const retry = useCallback(() => {
-    setError(null);
+    setFailure(null);
     setPollCount(0);
-    setPolling(true);
   }, []);
 
   /* ── 렌더 ── */
