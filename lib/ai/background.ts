@@ -5,13 +5,20 @@
 // 같이 끊긴다. Background Function(-background 접미사)은 15분까지 실행되므로
 // 배포 환경에서는 그쪽으로 넘기고, 로컬 개발에서는 그냥 인라인으로 실행한다.
 
-/** Netlify 위에서 도는가 (로컬 dev 와 구분) */
-export function onNetlify(): boolean {
-  return Boolean(process.env.NETLIFY);
-}
-
+/**
+ * 배포된 사이트 URL. 이게 있으면 백그라운드 함수를 호출할 수 있다.
+ *
+ * ⚠️ process.env.NETLIFY 로 판별하면 안 된다. Netlify 의 Next.js 런타임에는
+ * 그 변수가 설정되지 않아(실측: onNetlify=false) 항상 인라인 경로로 빠지고,
+ * 결국 10초 함수 제한에 걸려 죽었다. URL 은 정상적으로 주입된다.
+ */
 function siteUrl(): string | null {
   return process.env.URL ?? process.env.DEPLOY_PRIME_URL ?? process.env.DEPLOY_URL ?? null;
+}
+
+/** 백그라운드 함수를 쓸 수 있는 환경인가 (로컬 dev 와 구분) */
+export function onNetlify(): boolean {
+  return siteUrl() !== null;
 }
 
 /**
@@ -22,11 +29,9 @@ export async function triggerBackground(
   name: string,
   payload: Record<string, unknown>,
 ): Promise<boolean> {
-  if (!onNetlify()) return false;
-
   const base = siteUrl();
   if (!base) {
-    console.warn('[background] 사이트 URL 을 찾지 못해 인라인으로 실행합니다');
+    // 로컬 개발 — 호출부가 인라인으로 실행한다.
     return false;
   }
 

@@ -22,7 +22,9 @@ const BLOB_STORE = 'ai-analysis';
  * 인스턴스가 바뀔 때마다 사라져 "생성 중" 문구가 영원히 뜬다.
  * 쓰기 가능한 임시 디렉터리를 쓴다 (로컬 개발에서는 프로젝트 .cache 를 유지).
  */
-const FILE = process.env.NETLIFY
+// 배포(서버리스)에서는 프로젝트 디렉터리가 읽기 전용이라 tmp 를 쓴다.
+// NETLIFY 변수는 Next.js 런타임에 주입되지 않으므로(실측) URL 로 판별한다.
+const FILE = process.env.URL
   ? path.join(os.tmpdir(), 'macrosignal-ai-analysis.json')
   : path.join(process.cwd(), '.cache', 'ai-analysis.json');
 
