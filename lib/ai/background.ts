@@ -9,16 +9,11 @@
  * 배포된 사이트 URL. 이게 있으면 백그라운드 함수를 호출할 수 있다.
  *
  * ⚠️ process.env.NETLIFY 로 판별하면 안 된다. Netlify 의 Next.js 런타임에는
- * 그 변수가 설정되지 않아(실측: onNetlify=false) 항상 인라인 경로로 빠지고,
+ * 그 변수가 설정되지 않아(배포본에서 실측: false) 항상 인라인 경로로 빠지고,
  * 결국 10초 함수 제한에 걸려 죽었다. URL 은 정상적으로 주입된다.
  */
 function siteUrl(): string | null {
   return process.env.URL ?? process.env.DEPLOY_PRIME_URL ?? process.env.DEPLOY_URL ?? null;
-}
-
-/** 백그라운드 함수를 쓸 수 있는 환경인가 (로컬 dev 와 구분) */
-export function onNetlify(): boolean {
-  return siteUrl() !== null;
 }
 
 /**
