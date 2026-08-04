@@ -12,6 +12,9 @@ const corpWarmBackground = async (): Promise<Response> => {
   try {
     console.log('[bg:corp-warm] 시작');
     const list = await getListedCompanies();
+    // 빈 목록을 성공으로 넘기면 저장되는 것 없이 끝나 화면이 계속 기다린다.
+    if (list.length === 0) throw new Error('상장사 목록이 비어 있습니다');
+
     // 지난 실패 기록을 지운다 — 남아 있으면 성공한 뒤에도 오류가 뜬다.
     await storeSet(WARM_ERROR, null);
     console.log(`[bg:corp-warm] 완료 — 상장사 ${list.length}개`);

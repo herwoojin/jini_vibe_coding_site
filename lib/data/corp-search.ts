@@ -123,7 +123,10 @@ export async function getListedCompanies(): Promise<CorpEntry[]> {
   }
 
   const key = process.env.DART_KEY;
-  if (!key) return [];
+  // ⚠️ 조용히 [] 를 돌려주면 안 된다. 목록이 안 채워진 채 "성공"으로 끝나
+  // 화면은 원인도 모른 채 영영 "준비 중"에 머문다. 설정 누락은 드러내야 한다.
+  // (배포에서 라우트와 함수는 별개 환경이라, 한쪽에만 키가 보일 수 있다)
+  if (!key) throw new Error('DART_KEY 가 이 실행 환경에 없습니다');
 
   const res = await fetch(`${CORP_CODE_URL}?crtfc_key=${key}`, {
     next: { revalidate: 86_400 },
